@@ -26,6 +26,7 @@ import com.ionspin.kotlin.bignum.NarrowingOperations
 import com.ionspin.kotlin.bignum.decimal.BigDecimal
 import com.ionspin.kotlin.bignum.integer.base63.array.BigInteger63Arithmetic
 import com.ionspin.kotlin.bignum.integer.base63.array.BigInteger63Arithmetic.compareTo
+import com.ionspin.kotlin.bignum.integer.base63.array.BigInteger63Arithmetic.powersOf10
 import com.ionspin.kotlin.bignum.modular.ModularBigInteger
 import kotlin.math.ceil
 import kotlin.math.floor
@@ -513,8 +514,11 @@ class BigInteger internal constructor(wordArray: WordArray, requestedSign: Sign)
             throw ArithmeticException("Negative exponent not supported with BigInteger")
         }
         return when {
+            exponent == 0L -> ONE
+            exponent == 1L -> this
             isZero() -> ZERO
             this == ONE -> ONE
+            this == TEN && exponent < powersOf10.size -> fromWordArray(powersOf10[exponent.toInt()], Sign.POSITIVE)
             else -> {
                 val sign = if (sign == Sign.NEGATIVE) {
                     if (exponent % 2 == 0L) {
