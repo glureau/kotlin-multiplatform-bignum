@@ -708,17 +708,46 @@ class BigDecimalRoundingTest {
     }
 
     @Test
+    fun nominalCases() {
+        val modes = java.math.RoundingMode.values().filterNot { it == java.math.RoundingMode.UNNECESSARY }
+        val scales = listOf(0, 1, 2, 10)
+        modes.forEach { mode ->
+            scales.forEach { scale ->
+                testDivisionAndRounding(0.0, 1.0, scale, mode)
+                testDivisionAndRounding(1.0, 0.000000001, scale, mode)
+                testDivisionAndRounding(-0.00001, 0.02, scale, mode)
+                testDivisionAndRounding(-0.00001, -0.02, scale, mode)
+                testDivisionAndRounding(-0.00001, -2000.0, scale, mode)
+                testDivisionAndRounding(-0.00001, 2000.0, scale, mode)
+                testDivisionAndRounding(0.00001, 2000.0, scale, mode)
+                testDivisionAndRounding(10000.0, 2000.0, scale, mode)
+                testDivisionAndRounding(10000.0, 0.02, scale, mode)
+                testDivisionAndRounding(10000.0, -0.02, scale, mode)
+            }
+        }
+    }
+
+    @Test
     fun randomTestDoubleDivisionAndRounding() {
-        val dispatcher = newFixedThreadPoolContext(32, "Division and rounds")
+        val times = 1_000_000
+        val nThreads = 32
+        val dispatcher = newFixedThreadPoolContext(nThreads, "Division and rounds")
         val scope = CoroutineScope(dispatcher)
         val seed = 1
         val random = Random(seed)
         val jobList: MutableList<Job> = mutableListOf()
-        val modes = java.math.RoundingMode.values().filterNot { it == java.math.RoundingMode.UNNECESSARY }
-        for (i in 1..1_000_000) {
+        val modes = java.math.RoundingMode.entries.filterNot { it == java.math.RoundingMode.UNNECESSARY }
+        repeat(nThreads) {
             jobList.add(
                 scope.launch {
-                    testDivisionAndRounding(random.nextDouble(), random.nextDouble(), random.nextInt(100), modes.random())
+                    repeat(times / nThreads) {
+                        testDivisionAndRounding(
+                            a = random.nextDouble( -1_000_000_000.0, 1_000_000_000.0),
+                            b = random.nextDouble(-1_000_000_000.0, 1_000_000_000.0),
+                            scale = random.nextInt(100),
+                            jvmRoundingMode = modes.random()
+                        )
+                    }
                 }
             )
         }
@@ -732,7 +761,7 @@ class BigDecimalRoundingTest {
         }
     }
 
-    fun testDivisionAndRounding(a: Double, b: Double, scale: Int, jvmRoundingMode: java.math.RoundingMode) {
+    private fun testDivisionAndRounding(a: Double, b: Double, scale: Int, jvmRoundingMode: java.math.RoundingMode) {
         val bigNumA = a.toBigDecimal()
         val bigNumB = b.toBigDecimal()
         val bigNumRoundingMode = jvmRoundingMode.toBigNumRoundingMode()
@@ -740,7 +769,10 @@ class BigDecimalRoundingTest {
         val jvmB = bigNumB.toJavaBigDecimal()
         val jvmResult = jvmA.divide(jvmB, scale, jvmRoundingMode)
         val bigNumResult = bigNumA.divide(bigNumB, DecimalMode(scale + 100L, bigNumRoundingMode, scale.toLong()))
-        assertEquals(bigNumResult.toPlainString(), jvmResult.toPlainString())
+        assertEquals(
+            expected = jvmResult.toPlainString(), actual = bigNumResult.toPlainString(),
+            message = "Division issue: ${bigNumA.toPlainString()}.divide(${bigNumB.toPlainString()}, DecimalMode($scale + 100L, $bigNumRoundingMode, $scale.toLong()))"
+        )
     }
 
     fun RoundingMode.toJvmRoundingMode(): java.math.RoundingMode {
