@@ -51,7 +51,7 @@ class BigInteger internal constructor(wordArray: WordArray, requestedSign: Sign)
     init {
         if (requestedSign == Sign.ZERO) {
             require(isResultZero(wordArray)) {
-                "sign should be Sign.ZERO iff magnitude has a value of 0"
+                "sign should be Sign.ZERO if magnitude has a value of 0"
             }
         }
     }

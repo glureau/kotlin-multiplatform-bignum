@@ -1061,7 +1061,7 @@ internal object BigInteger63LinkedListArithmetic : BigIntegerList63Arithmetic {
         val bitLenght = bitLength(operand)
         val minDigit = ceil((bitLenght - 1) * BigInteger.LOG_10_OF_2)
 //        val maxDigit = floor(bitLenght * LOG_10_OF_2) + 1
-//        val correct = this / 10.toBigInteger().pow(maxDigit.toInt())
+//        val correct = this / BigInteger.TEN.pow(maxDigit.toInt())
 //        return when {
 //            correct == ZERO -> maxDigit.toInt() - 1
 //            correct > 0 && correct < 10 -> maxDigit.toInt()

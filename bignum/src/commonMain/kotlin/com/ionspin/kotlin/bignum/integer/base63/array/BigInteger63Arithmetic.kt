@@ -379,12 +379,13 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
         var firstIsLarger = false
         var bothAreEqual = true
         while (counter >= 0) {
-            if (first[counter] > second[counter]) {
+            val compare = first[counter].compareTo(second[counter])
+            if (compare > 0) {
                 firstIsLarger = true
                 bothAreEqual = false
                 break
             }
-            if (first[counter] < second[counter]) {
+            if (compare < 0) {
                 firstIsLarger = false
                 bothAreEqual = false
                 break
@@ -421,7 +422,7 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
             bitLength(operand)
         val minDigit = ceil((bitLenght - 1) * BigInteger.LOG_10_OF_2)
 //        val maxDigit = floor(bitLenght * LOG_10_OF_2) + 1
-//        val correct = this / 10.toBigInteger().pow(maxDigit.toInt())
+//        val correct = this / BigInteger.TEN.pow(maxDigit.toInt())
 //        return when {
 //            correct.isZero() -> maxDigit.toInt() - 1
 //            correct > 0 && correct < 10 -> maxDigit.toInt()
@@ -515,9 +516,9 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
         val possibleOverflow =
             possibleAdditionOverflow(largerLength, smallerLength, largerData, smallerData, largerStart, smallerStart)
         val result = if (possibleOverflow) {
-            ULongArray(largerLength + 1) { 0u }
+            ULongArray(largerLength + 1)
         } else {
-            ULongArray(largerLength) { 0u }
+            ULongArray(largerLength)
         }
         baseAddIntoArray(result, 0, first, second)
         return if (possibleOverflow) {
@@ -562,7 +563,7 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
         } else {
             Sextuple(second.size, first.size, second, first, secondStart, firstStart)
         }
-        val result = ULongArray(largerStart + 1) { 0u }
+        val result = ULongArray(largerStart + 1)
         var i = 0
         var sum: ULong = 0u
         while (i < smallerStart) {
@@ -634,7 +635,7 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
         } else {
             Quadruple(second, first, secondStart, firstStart)
         }
-        val result = ULongArray(largerStart) { 0U }
+        val result = ULongArray(largerStart)
         var i = 0
         var diff: ULong = 0u
         while (i < smallerStart) {
@@ -836,13 +837,13 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
     @Suppress("DuplicatedCode")
     fun toomCook3Multiply(firstUnchecked: ULongArray, secondUnchecked: ULongArray): ULongArray {
         val first = if (firstUnchecked.size % 3 != 0) {
-            firstUnchecked.plus(ULongArray((((firstUnchecked.size + 2) / 3) * 3) - firstUnchecked.size) { 0U }.asIterable())
+            firstUnchecked.plus(ULongArray((((firstUnchecked.size + 2) / 3) * 3) - firstUnchecked.size).asIterable())
         } else {
             firstUnchecked
         }.toULongArray()
 
         val second = if (secondUnchecked.size % 3 != 0) {
-            secondUnchecked.plus(ULongArray((((secondUnchecked.size + 2) / 3) * 3) - secondUnchecked.size) { 0U }.asIterable())
+            secondUnchecked.plus(ULongArray((((secondUnchecked.size + 2) / 3) * 3) - secondUnchecked.size).asIterable())
         } else {
             secondUnchecked
         }.toULongArray()
@@ -1266,7 +1267,7 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
         )
         val m = a.size - b.size
         val bmb = b shl (m * wordSizeInBits)
-        var q = ULongArray(m + 1) { 0U }
+        var q = ULongArray(m + 1)
         if (a > bmb) {
             q[m] = 1U
             a = a - bmb
@@ -2229,7 +2230,7 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
         operand: ULongArray
     ): UByteArray {
         if (operand == ZERO) {
-            return UByteArray(1) { 0U }
+            return UByteArray(1)
         }
         val as64Bit = convertTo64BitRepresentation(operand).reversedArray()
         val result = UByteArray(as64Bit.size * 8)

@@ -866,7 +866,8 @@ class BigDecimal private constructor(
             if (floatingPointString.isEmpty()) {
                 throw ArithmeticException("Empty string is not a valid decimal number")
             }
-            if (floatingPointString.contains('E', true)) {
+            // Perf: comparing with ignoreCase=true is more costly than doing 2 contains
+            if (floatingPointString.contains('E') || floatingPointString.contains('e')) {
                 // Sci notation
                 val split = if (floatingPointString.contains('.').not()) {
                     // As is case with JS Double.MIN_VALUE
@@ -1278,8 +1279,8 @@ class BigDecimal private constructor(
 
             val power = desiredPrecision - this.precision + other.precision
             val thisPrepared = when {
-                power > 0 -> this.significand * 10.toBigInteger().pow(power)
-                power < 0 -> this.significand / 10.toBigInteger().pow(power.absoluteValue)
+                power > 0 -> this.significand * BigInteger.TEN.pow(power)
+                power < 0 -> this.significand / BigInteger.TEN.pow(power.absoluteValue)
                 else -> this.significand
             }
 
@@ -1467,10 +1468,10 @@ class BigDecimal private constructor(
         val precisionExponentDiff = exponent - precision
         return when {
             precisionExponentDiff > 0 -> {
-                significand * 10.toBigInteger().pow(precisionExponentDiff + 1)
+                significand * BigInteger.TEN.pow(precisionExponentDiff + 1)
             }
             precisionExponentDiff < 0 -> {
-                significand / 10.toBigInteger().pow(precisionExponentDiff.absoluteValue - 1)
+                significand / BigInteger.TEN.pow(precisionExponentDiff.absoluteValue - 1)
             }
             else -> {
                 significand * 10
@@ -1976,7 +1977,7 @@ class BigDecimal private constructor(
      * I.e.:
      * 1.234E3 == 1234, rounded with DecimalMode(2, RoundingMode.CEILING) will return 1.3E3 == 1300
      *
-     * 1.234E-3 == 0.001234, , rounded with DecimalMode(2, RoundingMode.CEILING) will return 1.3E-3 == 0.0013
+     * 1.234E-3 == 0.001234, rounded with DecimalMode(2, RoundingMode.CEILING) will return 1.3E-3 == 0.0013
      *
      */
     fun roundSignificand(decimalMode: DecimalMode?): BigDecimal {
