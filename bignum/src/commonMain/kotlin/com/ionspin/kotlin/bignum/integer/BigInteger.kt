@@ -26,6 +26,7 @@ import com.ionspin.kotlin.bignum.NarrowingOperations
 import com.ionspin.kotlin.bignum.decimal.BigDecimal
 import com.ionspin.kotlin.bignum.integer.base63.array.BigInteger63Arithmetic
 import com.ionspin.kotlin.bignum.integer.base63.array.BigInteger63Arithmetic.compareTo
+import com.ionspin.kotlin.bignum.integer.base63.array.BigInteger63Arithmetic.powersOf10
 import com.ionspin.kotlin.bignum.modular.ModularBigInteger
 import kotlin.math.floor
 import kotlin.math.log10
@@ -134,14 +135,14 @@ class BigInteger internal constructor(wordArray: WordArray, requestedSign: Sign)
                 Short::class -> 0.toShort() as T
                 Byte::class -> 0.toByte() as T
                 else -> throw RuntimeException("Unsupported type ${T::class}")
-                }
+            }
             val compared: Int = number.compareTo(zero)
             return when {
                 compared > 0 -> Sign.POSITIVE
                 compared < 0 -> Sign.NEGATIVE
-                        else -> Sign.ZERO
-                    }
-                }
+                else -> Sign.ZERO
+            }
+        }
 
         // BigIntegers are immutable so this is pointless, but the rest of creator implementations use this.
         override fun fromBigInteger(bigInteger: BigInteger): BigInteger {
@@ -435,7 +436,7 @@ class BigInteger internal constructor(wordArray: WordArray, requestedSign: Sign)
 
     override fun isZero(): Boolean {
         return this.sign == Sign.ZERO ||
-            chosenArithmetic.compare(this.magnitude, chosenArithmetic.ZERO) == 0
+                chosenArithmetic.compare(this.magnitude, chosenArithmetic.ZERO) == 0
     }
 
     override fun negate(): BigInteger {
@@ -486,6 +487,9 @@ class BigInteger internal constructor(wordArray: WordArray, requestedSign: Sign)
             throw ArithmeticException("Negative exponent not supported with BigInteger")
         }
         return when {
+            // TEN is quite often used with pow, so we can optimize for it
+            // Note that this optimization requires the use of TEN and not a copy of it (comparing pointers for perf)
+            this === TEN && exponent < powersOf10.size -> fromWordArray(powersOf10[exponent.toInt()], Sign.POSITIVE)
             isZero() -> ZERO
             this == ONE -> ONE
             else -> {

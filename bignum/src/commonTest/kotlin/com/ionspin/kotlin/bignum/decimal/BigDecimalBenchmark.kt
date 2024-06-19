@@ -1,5 +1,6 @@
 package com.ionspin.kotlin.bignum.decimal
 
+import com.ionspin.kotlin.bignum.integer.BigInteger
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.random.Random
@@ -58,6 +59,9 @@ class BigDecimalBenchmark {
     private fun Random.randomBigDecimal(allowZero: Boolean = true): BigDecimal =
         BigDecimal.parseStringWithMode(randomStringDecimal(allowZero), randomDecimalMode())
 
+    private fun Random.randomBigInteger(allowZero: Boolean = true): BigInteger =
+        BigInteger.parseString(randomStringInteger(allowZero))
+
     private val benchmarkList = mutableListOf<BenchmarkRun>()
 
     private data class BenchmarkRun(val key: String, val runNumber: Int, val duration: Duration)
@@ -91,29 +95,29 @@ class BigDecimalBenchmark {
     }
 
     @Test
-    fun perfParseStringWithMode() {
+    fun performanceBenchmark() {
         benchmark(
-            key = "parseStringWithMode",
+            key = "BigDecimal.parseStringWithMode",
             prepare = { randomStringDecimal() to randomDecimalMode() },
             measure = { BigDecimal.parseStringWithMode(it.first, it.second) }
         )
         benchmark(
-            key = "add",
+            key = "BigDecimal.add",
             prepare = { randomBigDecimal() to randomBigDecimal() },
             measure = { (a, b) -> a + b }
         )
         benchmark(
-            key = "subtract",
+            key = "BigDecimal.subtract",
             prepare = { randomBigDecimal() to randomBigDecimal() },
             measure = { (a, b) -> a - b }
         )
         benchmark(
-            key = "multiply",
+            key = "BigDecimal.multiply",
             prepare = { randomBigDecimal() to randomBigDecimal() },
             measure = { (a, b) -> a * b }
         )
         benchmark(
-            key = "divide",
+            key = "BigDecimal.divide",
             prepare = {
                 Triple(
                     randomBigDecimal(),
@@ -124,30 +128,44 @@ class BigDecimalBenchmark {
             measure = { (a, b, mode) -> a.divide(b, mode) }
         )
         benchmark(
-            key = "hashCode",
+            key = "BigDecimal.hashCode",
             prepare = { randomBigDecimal() },
             measure = { it.hashCode() }
         )
         benchmark(
-            key = "toStringExpanded",
+            key = "BigDecimal.toStringExpanded",
             prepare = { randomBigDecimal() },
             measure = { it.toStringExpanded() }
         )
         benchmark(
-            key = "toPlainString",
+            key = "BigDecimal.toPlainString",
             prepare = { randomBigDecimal() },
             measure = { it.toPlainString() }
         )
         benchmark(
-            key = "roundToDigitPosition",
+            key = "BigDecimal.roundToDigitPosition",
             prepare = { randomBigDecimal() to randomRoundingMode(allowNone = false) },
             measure = { (a, b) -> a.roundToDigitPosition(2, b) }
         )
         benchmark(
-            key = "pow",
+            key = "BigDecimal.pow",
             prepare = { randomBigDecimal() to nextInt(0, 5) },
             measure = { (a, b) -> a.pow(b) }
         )
+
+        // ------------ BigInteger ------------
+
+        benchmark(
+            key = "BigInteger.pow",
+            prepare = { randomBigInteger() to nextInt(0, 5) },
+            measure = { (a, b) -> a.pow(b) }
+        )
+        benchmark(
+            key = "BigInteger.TEN.pow",
+            prepare = { nextLong(0, 50) },
+            measure = { BigInteger.TEN.pow(it) }
+        )
+
         printBenchmarkReport()
     }
 
