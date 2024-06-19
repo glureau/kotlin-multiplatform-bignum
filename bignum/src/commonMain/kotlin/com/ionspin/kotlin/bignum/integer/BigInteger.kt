@@ -26,8 +26,9 @@ import com.ionspin.kotlin.bignum.NarrowingOperations
 import com.ionspin.kotlin.bignum.decimal.BigDecimal
 import com.ionspin.kotlin.bignum.integer.base63.array.BigInteger63Arithmetic
 import com.ionspin.kotlin.bignum.integer.base63.array.BigInteger63Arithmetic.compareTo
+import com.ionspin.kotlin.bignum.integer.base63.array.BigInteger63Arithmetic.isZero
+import com.ionspin.kotlin.bignum.integer.base63.array.BigInteger63Arithmetic.powersOf10
 import com.ionspin.kotlin.bignum.modular.ModularBigInteger
-import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.log10
 
@@ -43,15 +44,15 @@ class BigInteger internal constructor(wordArray: WordArray, requestedSign: Sign)
     BitwiseCapable<BigInteger>, Comparable<Any>,
     ByteArraySerializable {
 
-    constructor(long: Long) : this(arithmetic.fromLong(long), determinSignFromNumber(long))
-    constructor(int: Int) : this(arithmetic.fromInt(int), determinSignFromNumber(int))
-    constructor(short: Short) : this(arithmetic.fromShort(short), determinSignFromNumber(short))
-    constructor(byte: Byte) : this(arithmetic.fromByte(byte), determinSignFromNumber(byte))
+    constructor(long: Long) : this(arithmetic.fromLong(long), determineSignFromNumber(long))
+    constructor(int: Int) : this(arithmetic.fromInt(int), determineSignFromNumber(int))
+    constructor(short: Short) : this(arithmetic.fromShort(short), determineSignFromNumber(short))
+    constructor(byte: Byte) : this(arithmetic.fromByte(byte), determineSignFromNumber(byte))
 
     init {
         if (requestedSign == Sign.ZERO) {
             require(isResultZero(wordArray)) {
-                "sign should be Sign.ZERO iff magnitude has a value of 0"
+                "sign should be Sign.ZERO if magnitude has a value of 0"
             }
         }
     }
@@ -128,41 +129,19 @@ class BigInteger internal constructor(wordArray: WordArray, requestedSign: Sign)
             return BigInteger(wordArray, sign)
         }
 
-        private inline fun <reified T> determinSignFromNumber(number: Comparable<T>): Sign {
-            return when (T::class) {
-                Long::class -> {
-                    number as Long
-                    when {
-                        number < 0 -> Sign.NEGATIVE
-                        number > 0 -> Sign.POSITIVE
-                        else -> Sign.ZERO
-                    }
-                }
-                Int::class -> {
-                    number as Int
-                    when {
-                        number < 0 -> Sign.NEGATIVE
-                        number > 0 -> Sign.POSITIVE
-                        else -> Sign.ZERO
-                    }
-                }
-                Short::class -> {
-                    number as Short
-                    when {
-                        number < 0 -> Sign.NEGATIVE
-                        number > 0 -> Sign.POSITIVE
-                        else -> Sign.ZERO
-                    }
-                }
-                Byte::class -> {
-                    number as Byte
-                    when {
-                        number < 0 -> Sign.NEGATIVE
-                        number > 0 -> Sign.POSITIVE
-                        else -> Sign.ZERO
-                    }
-                }
+        private inline fun <reified T> determineSignFromNumber(number: Comparable<T>): Sign {
+            val zero: T = when (T::class) {
+                Long::class -> 0L as T
+                Int::class -> 0 as T
+                Short::class -> 0.toShort() as T
+                Byte::class -> 0.toByte() as T
                 else -> throw RuntimeException("Unsupported type ${T::class}")
+            }
+            val compared: Int = number.compareTo(zero)
+            return when {
+                compared > 0 -> Sign.POSITIVE
+                compared < 0 -> Sign.NEGATIVE
+                else -> Sign.ZERO
             }
         }
 
@@ -239,11 +218,7 @@ class BigInteger internal constructor(wordArray: WordArray, requestedSign: Sign)
 
     internal val magnitude: WordArray = BigInteger63Arithmetic.removeLeadingZeros(wordArray)
 
-    internal val sign: Sign = if (isResultZero(magnitude)) {
-        Sign.ZERO
-    } else {
-        requestedSign
-    }
+    internal val sign: Sign = requestedSign
 
     private fun isResultZero(resultMagnitude: WordArray): Boolean {
         return arithmetic.compare(resultMagnitude, arithmetic.ZERO) == 0
@@ -462,7 +437,7 @@ class BigInteger internal constructor(wordArray: WordArray, requestedSign: Sign)
 
     override fun isZero(): Boolean {
         return this.sign == Sign.ZERO ||
-            chosenArithmetic.compare(this.magnitude, chosenArithmetic.ZERO) == 0
+                with(chosenArithmetic) { this@BigInteger.magnitude.isZero() }
     }
 
     override fun negate(): BigInteger {
@@ -513,6 +488,9 @@ class BigInteger internal constructor(wordArray: WordArray, requestedSign: Sign)
             throw ArithmeticException("Negative exponent not supported with BigInteger")
         }
         return when {
+            // TEN is quite often used with pow, so we can optimize for it
+            // Note that this optimization requires the use of TEN and not a copy of it (comparing pointers for perf)
+            this === TEN && exponent < powersOf10.size -> fromWordArray(powersOf10[exponent.toInt()], Sign.POSITIVE)
             isZero() -> ZERO
             this == ONE -> ONE
             else -> {
@@ -564,8 +542,8 @@ class BigInteger internal constructor(wordArray: WordArray, requestedSign: Sign)
         }
 //        val bitLength = arithmetic.bitLength(magnitude)
 //        val minDigit = ceil((bitLength - 1) * LOG_10_OF_2)
-//        val maxDigit = floor(bitLenght * LOG_10_OF_2) + 1
-//        val correct = this / 10.toBigInteger().pow(maxDigit.toInt())
+//        val maxDigit = floor(bitLength * LOG_10_OF_2) + 1
+//        val correct = this / BigInteger.TEN.pow(maxDigit.toInt())
 //        return when {
 //            correct == ZERO -> maxDigit.toInt() - 1
 //            correct > 0 && correct < 10 -> maxDigit.toInt()

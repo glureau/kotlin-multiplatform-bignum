@@ -812,7 +812,7 @@ internal object BigInteger32Arithmetic : BigInteger32ArithmeticInterface {
         var (a, b, shift) = normalize(unnormalizedDividend, unnormalizedDivisor)
         val m = a.size - b.size
         val bmb = b shl (m * wordSizeInBits)
-        var q = UIntArray(m + 1) { 0U }
+        var q = UIntArray(m + 1)
         if (a > bmb) {
             q[m] = 1U
             a = a - bmb
@@ -1078,7 +1078,7 @@ internal object BigInteger32Arithmetic : BigInteger32ArithmeticInterface {
         val bitLenght = bitLength(operand)
         val minDigit = ceil((bitLenght - 1) * BigInteger.LOG_10_OF_2)
 //        val maxDigit = floor(bitLenght * LOG_10_OF_2) + 1
-//        val correct = this / 10.toBigInteger().pow(maxDigit.toInt())
+//        val correct = this / BigInteger.TEN.pow(maxDigit.toInt())
 //        return when {
 //            correct == ZERO -> maxDigit.toInt() - 1
 //            correct > 0 && correct < 10 -> maxDigit.toInt()

@@ -28,12 +28,10 @@ import kotlin.native.concurrent.SharedImmutable
  * on 10-Mar-2019
  */
 
-// typealias WordArray = List<ULong>
 typealias WordArray = ULongArray
 
 typealias Word = ULong
 
-@SharedImmutable
 internal val chosenArithmetic: BigIntegerArithmetic =
     BigInteger63Arithmetic
 // internal val chosenArithmetic: BigIntegerArithmetic<WordArray, Word> = BigInteger63LinkedListArithmetic
