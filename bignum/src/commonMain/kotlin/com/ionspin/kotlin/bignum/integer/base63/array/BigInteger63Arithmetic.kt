@@ -28,6 +28,7 @@ import com.ionspin.kotlin.bignum.modular.ModularBigInteger
 import kotlin.math.absoluteValue
 import kotlin.math.ceil
 import kotlin.math.floor
+import kotlin.math.log2
 
 /**
  * Created by Ugljesa Jovanovic
@@ -1935,9 +1936,16 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
     }
 
     override fun parseForBase(number: String, base: Int): ULongArray {
+        val maxDigits = floor(wordSizeInBits / log2(base.toDouble())).toInt()
+        if (number.length < maxDigits) {
+            val toULong = number.toULong(base)
+            return ULongArray(1) { toULong }
+        }
+
         var parsed = ZERO
-        number.toLowerCase().forEach { char ->
-            parsed = (parsed * base.toULong()) + (char.toDigit(base)).toULong()
+        val baseULong = base.toULong()
+        number.forEach { char ->
+            parsed = parsed * baseULong + char.toDigit(base).toULong()
         }
         return removeLeadingZeros(
             parsed
