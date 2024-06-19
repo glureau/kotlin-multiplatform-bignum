@@ -171,6 +171,11 @@ class BigDecimalBenchmark {
             prepare = { nextLong(0, 50) },
             measure = { BigInteger.TEN.pow(it) }
         )
+        benchmark(
+            key = "BigInteger.isZero",
+            prepare = { randomBigInteger()},
+            measure = { it.isZero() }
+        )
 
         printBenchmarkReport()
     }
