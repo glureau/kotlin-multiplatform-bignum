@@ -153,6 +153,12 @@ class BigDecimalBenchmark {
             measure = { (a, b) -> a.pow(b) }
         )
 
+        benchmark(
+            key = "BigDecimal.isZero",
+            prepare = { randomBigDecimal()},
+            measure = { it.isZero() }
+        )
+
         // ------------ BigInteger ------------
 
         benchmark(

@@ -21,6 +21,7 @@ import com.ionspin.kotlin.bignum.integer.BigInteger
 import com.ionspin.kotlin.bignum.integer.BigIntegerArithmetic
 import com.ionspin.kotlin.bignum.integer.Quadruple
 import com.ionspin.kotlin.bignum.integer.Sextuple
+import com.ionspin.kotlin.bignum.integer.WordArray
 import com.ionspin.kotlin.bignum.integer.base32.BigInteger32Arithmetic
 import com.ionspin.kotlin.bignum.integer.util.toBigEndianUByteArray
 import com.ionspin.kotlin.bignum.integer.util.toDigit
@@ -1744,14 +1745,9 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
         }
     }
 
-    private fun ULongArray.isZero(): Boolean {
+    override fun ULongArray.isZero(): Boolean {
         if (this == ZERO) return true
-        if (this.size == 1 && this[0] == 0UL) return true
-        if (this.size - countLeadingZeroWords(
-                this
-            ) == 0
-        ) return true
-        return false
+        return this.all { it == 0UL }
     }
 
     private fun euclideanGcd(first: ULongArray, second: ULongArray): ULongArray {

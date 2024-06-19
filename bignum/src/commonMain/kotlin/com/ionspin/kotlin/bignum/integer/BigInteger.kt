@@ -26,6 +26,7 @@ import com.ionspin.kotlin.bignum.NarrowingOperations
 import com.ionspin.kotlin.bignum.decimal.BigDecimal
 import com.ionspin.kotlin.bignum.integer.base63.array.BigInteger63Arithmetic
 import com.ionspin.kotlin.bignum.integer.base63.array.BigInteger63Arithmetic.compareTo
+import com.ionspin.kotlin.bignum.integer.base63.array.BigInteger63Arithmetic.isZero
 import com.ionspin.kotlin.bignum.integer.base63.array.BigInteger63Arithmetic.powersOf10
 import com.ionspin.kotlin.bignum.modular.ModularBigInteger
 import kotlin.math.floor
@@ -436,7 +437,7 @@ class BigInteger internal constructor(wordArray: WordArray, requestedSign: Sign)
 
     override fun isZero(): Boolean {
         return this.sign == Sign.ZERO ||
-                chosenArithmetic.compare(this.magnitude, chosenArithmetic.ZERO) == 0
+                with(chosenArithmetic) { this@BigInteger.magnitude.isZero() }
     }
 
     override fun negate(): BigInteger {
