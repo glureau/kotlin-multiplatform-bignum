@@ -20,7 +20,6 @@ package com.ionspin.kotlin.bignum.integer.base63.array
 import com.ionspin.kotlin.bignum.integer.BigInteger
 import com.ionspin.kotlin.bignum.integer.BigIntegerArithmetic
 import com.ionspin.kotlin.bignum.integer.Quadruple
-import com.ionspin.kotlin.bignum.integer.Sextuple
 import com.ionspin.kotlin.bignum.integer.base32.BigInteger32Arithmetic
 import com.ionspin.kotlin.bignum.integer.util.toBigEndianUByteArray
 import com.ionspin.kotlin.bignum.integer.util.toDigit
@@ -461,11 +460,14 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
             second
         )
 
-        val (largerLength, smallerLength, largerData, smallerData, largerStart, smallerStart) = if (firstStart > secondStart) {
-            Sextuple(first.size, second.size, first, second, firstStart, secondStart)
-        } else {
-            Sextuple(second.size, first.size, second, first, secondStart, firstStart)
-        }
+        val reverse = firstStart <= secondStart
+        val largerLength = if (reverse) second.size else first.size
+        //val smallerLength = if (reverse) first.size else second.size
+        val largerData = if (reverse) second else first
+        val smallerData = if (reverse) first else second
+        val largerStart = if (reverse) secondStart else firstStart
+        val smallerStart = if (reverse) firstStart else secondStart
+
         var i = 0
         var sum: ULong = 0u
         while (i < smallerStart) {
@@ -507,11 +509,14 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
             second
         )
 
-        val (largerLength, smallerLength, largerData, smallerData, largerStart, smallerStart) = if (firstStart > secondStart) {
-            Sextuple(first.size, second.size, first, second, firstStart, secondStart)
-        } else {
-            Sextuple(second.size, first.size, second, first, secondStart, firstStart)
-        }
+        val reverse = firstStart <= secondStart
+        val largerLength = if (reverse) second.size else first.size
+        val smallerLength = if (reverse) first.size else second.size
+        val largerData = if (reverse) second else first
+        val smallerData = if (reverse) first else second
+        val largerStart = if (reverse) secondStart else firstStart
+        val smallerStart = if (reverse) firstStart else secondStart
+
         val possibleOverflow =
             possibleAdditionOverflow(largerLength, smallerLength, largerData, smallerData, largerStart, smallerStart)
         val result = if (possibleOverflow) {
@@ -557,12 +562,15 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
             second
         )
 
-        val (largerLength, smallerLength, largerData, smallerData, largerStart, smallerStart) = if (firstStart > secondStart) {
-            Sextuple(first.size, second.size, first, second, firstStart, secondStart)
-        } else {
-            Sextuple(second.size, first.size, second, first, secondStart, firstStart)
-        }
-        val result = ULongArray(largerStart + 1) { 0u }
+        val reverse = firstStart <= secondStart
+        val largerLength = if (reverse) second.size else first.size
+        // val smallerLength = if (reverse) first.size else second.size
+        val largerData = if (reverse) second else first
+        val smallerData = if (reverse) first else second
+        val largerStart = if (reverse) secondStart else firstStart
+        val smallerStart = if (reverse) firstStart else secondStart
+
+        val result = ULongArray(largerStart + 1)
         var i = 0
         var sum: ULong = 0u
         while (i < smallerStart) {
