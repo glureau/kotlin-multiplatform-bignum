@@ -79,7 +79,7 @@ enum class RoundingMode {
  * @param scale is number of digits to the right of the decimal point.
  * When this is specified, a RoundingMode that is not RoundingMode.NONE is also required.
  * Scale cannot be greater than precision - 1.
- * If left to default = null, no scale will be used. Rounding and decimalPrecision apply.
+ * If left to default (or -1), no scale will be used. Rounding and decimalPrecision apply.
  * Negative scale numbers are not supported.
  * Using scale will increase the precision to required number of digits.
  */

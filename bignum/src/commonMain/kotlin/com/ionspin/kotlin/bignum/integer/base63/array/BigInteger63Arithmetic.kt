@@ -20,7 +20,6 @@ package com.ionspin.kotlin.bignum.integer.base63.array
 import com.ionspin.kotlin.bignum.integer.BigInteger
 import com.ionspin.kotlin.bignum.integer.BigIntegerArithmetic
 import com.ionspin.kotlin.bignum.integer.Quadruple
-import com.ionspin.kotlin.bignum.integer.Sextuple
 import com.ionspin.kotlin.bignum.integer.base32.BigInteger32Arithmetic
 import com.ionspin.kotlin.bignum.integer.util.toBigEndianUByteArray
 import com.ionspin.kotlin.bignum.integer.util.toDigit
@@ -28,6 +27,7 @@ import com.ionspin.kotlin.bignum.modular.ModularBigInteger
 import kotlin.math.absoluteValue
 import kotlin.math.ceil
 import kotlin.math.floor
+import kotlin.math.log2
 
 /**
  * Created by Ugljesa Jovanovic
@@ -379,12 +379,13 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
         var firstIsLarger = false
         var bothAreEqual = true
         while (counter >= 0) {
-            if (first[counter] > second[counter]) {
+            val compare = first[counter].compareTo(second[counter])
+            if (compare > 0) {
                 firstIsLarger = true
                 bothAreEqual = false
                 break
             }
-            if (first[counter] < second[counter]) {
+            if (compare < 0) {
                 firstIsLarger = false
                 bothAreEqual = false
                 break
@@ -421,7 +422,7 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
             bitLength(operand)
         val minDigit = ceil((bitLenght - 1) * BigInteger.LOG_10_OF_2)
 //        val maxDigit = floor(bitLenght * LOG_10_OF_2) + 1
-//        val correct = this / 10.toBigInteger().pow(maxDigit.toInt())
+//        val correct = this / BigInteger.TEN.pow(maxDigit.toInt())
 //        return when {
 //            correct.isZero() -> maxDigit.toInt() - 1
 //            correct > 0 && correct < 10 -> maxDigit.toInt()
@@ -461,11 +462,14 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
             second
         )
 
-        val (largerLength, smallerLength, largerData, smallerData, largerStart, smallerStart) = if (firstStart > secondStart) {
-            Sextuple(first.size, second.size, first, second, firstStart, secondStart)
-        } else {
-            Sextuple(second.size, first.size, second, first, secondStart, firstStart)
-        }
+        val reverse = firstStart <= secondStart
+        val largerLength = if (reverse) second.size else first.size
+        //val smallerLength = if (reverse) first.size else second.size
+        val largerData = if (reverse) second else first
+        val smallerData = if (reverse) first else second
+        val largerStart = if (reverse) secondStart else firstStart
+        val smallerStart = if (reverse) firstStart else secondStart
+
         var i = 0
         var sum: ULong = 0u
         while (i < smallerStart) {
@@ -507,17 +511,20 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
             second
         )
 
-        val (largerLength, smallerLength, largerData, smallerData, largerStart, smallerStart) = if (firstStart > secondStart) {
-            Sextuple(first.size, second.size, first, second, firstStart, secondStart)
-        } else {
-            Sextuple(second.size, first.size, second, first, secondStart, firstStart)
-        }
+        val reverse = firstStart <= secondStart
+        val largerLength = if (reverse) second.size else first.size
+        val smallerLength = if (reverse) first.size else second.size
+        val largerData = if (reverse) second else first
+        val smallerData = if (reverse) first else second
+        val largerStart = if (reverse) secondStart else firstStart
+        val smallerStart = if (reverse) firstStart else secondStart
+
         val possibleOverflow =
             possibleAdditionOverflow(largerLength, smallerLength, largerData, smallerData, largerStart, smallerStart)
         val result = if (possibleOverflow) {
-            ULongArray(largerLength + 1) { 0u }
+            ULongArray(largerLength + 1)
         } else {
-            ULongArray(largerLength) { 0u }
+            ULongArray(largerLength)
         }
         baseAddIntoArray(result, 0, first, second)
         return if (possibleOverflow) {
@@ -557,12 +564,15 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
             second
         )
 
-        val (largerLength, smallerLength, largerData, smallerData, largerStart, smallerStart) = if (firstStart > secondStart) {
-            Sextuple(first.size, second.size, first, second, firstStart, secondStart)
-        } else {
-            Sextuple(second.size, first.size, second, first, secondStart, firstStart)
-        }
-        val result = ULongArray(largerStart + 1) { 0u }
+        val reverse = firstStart <= secondStart
+        val largerLength = if (reverse) second.size else first.size
+        // val smallerLength = if (reverse) first.size else second.size
+        val largerData = if (reverse) second else first
+        val smallerData = if (reverse) first else second
+        val largerStart = if (reverse) secondStart else firstStart
+        val smallerStart = if (reverse) firstStart else secondStart
+
+        val result = ULongArray(largerStart + 1)
         var i = 0
         var sum: ULong = 0u
         while (i < smallerStart) {
@@ -634,7 +644,7 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
         } else {
             Quadruple(second, first, secondStart, firstStart)
         }
-        val result = ULongArray(largerStart) { 0U }
+        val result = ULongArray(largerStart)
         var i = 0
         var diff: ULong = 0u
         while (i < smallerStart) {
@@ -836,13 +846,13 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
     @Suppress("DuplicatedCode")
     fun toomCook3Multiply(firstUnchecked: ULongArray, secondUnchecked: ULongArray): ULongArray {
         val first = if (firstUnchecked.size % 3 != 0) {
-            firstUnchecked.plus(ULongArray((((firstUnchecked.size + 2) / 3) * 3) - firstUnchecked.size) { 0U }.asIterable())
+            firstUnchecked.plus(ULongArray((((firstUnchecked.size + 2) / 3) * 3) - firstUnchecked.size).asIterable())
         } else {
             firstUnchecked
         }.toULongArray()
 
         val second = if (secondUnchecked.size % 3 != 0) {
-            secondUnchecked.plus(ULongArray((((secondUnchecked.size + 2) / 3) * 3) - secondUnchecked.size) { 0U }.asIterable())
+            secondUnchecked.plus(ULongArray((((secondUnchecked.size + 2) / 3) * 3) - secondUnchecked.size).asIterable())
         } else {
             secondUnchecked
         }.toULongArray()
@@ -1266,7 +1276,7 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
         )
         val m = a.size - b.size
         val bmb = b shl (m * wordSizeInBits)
-        var q = ULongArray(m + 1) { 0U }
+        var q = ULongArray(m + 1)
         if (a > bmb) {
             q[m] = 1U
             a = a - bmb
@@ -1742,14 +1752,9 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
         }
     }
 
-    private fun ULongArray.isZero(): Boolean {
+    override fun ULongArray.isZero(): Boolean {
         if (this == ZERO) return true
-        if (this.size == 1 && this[0] == 0UL) return true
-        if (this.size - countLeadingZeroWords(
-                this
-            ) == 0
-        ) return true
-        return false
+        return this.all { it == 0UL }
     }
 
     private fun euclideanGcd(first: ULongArray, second: ULongArray): ULongArray {
@@ -1934,9 +1939,16 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
     }
 
     override fun parseForBase(number: String, base: Int): ULongArray {
+        val maxDigits = floor(wordSizeInBits / log2(base.toDouble())).toInt()
+        if (number.length < maxDigits) {
+            val toULong = number.toULong(base)
+            return ULongArray(1) { toULong }
+        }
+
         var parsed = ZERO
-        number.toLowerCase().forEach { char ->
-            parsed = (parsed * base.toULong()) + (char.toDigit(base)).toULong()
+        val baseULong = base.toULong()
+        number.forEach { char ->
+            parsed = parsed * baseULong + char.toDigit(base).toULong()
         }
         return removeLeadingZeros(
             parsed
@@ -2229,7 +2241,7 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
         operand: ULongArray
     ): UByteArray {
         if (operand == ZERO) {
-            return UByteArray(1) { 0U }
+            return UByteArray(1)
         }
         val as64Bit = convertTo64BitRepresentation(operand).reversedArray()
         val result = UByteArray(as64Bit.size * 8)
