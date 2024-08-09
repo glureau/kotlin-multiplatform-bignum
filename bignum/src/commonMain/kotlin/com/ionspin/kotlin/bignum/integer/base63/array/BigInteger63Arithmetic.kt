@@ -541,8 +541,8 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
         smallerStart: Int
     ): Boolean {
 
-        var firstMostSignificant = largerData[largerStart - 1]
-        var secondMostSignificant = smallerData[smallerStart - 1]
+        val firstMostSignificant = largerData[largerStart - 1]
+        val secondMostSignificant = smallerData[smallerStart - 1]
 
         // if two consecutive bits on same positions in both operands are 0, they cannot overflow
         val possibleOverflow = ((firstMostSignificant and 0x6000000000000000UL) != 0UL) ||

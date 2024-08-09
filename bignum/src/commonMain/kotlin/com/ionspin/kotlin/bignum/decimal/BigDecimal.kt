@@ -25,6 +25,7 @@ import com.ionspin.kotlin.bignum.integer.Platform
 import com.ionspin.kotlin.bignum.integer.RuntimePlatform
 import com.ionspin.kotlin.bignum.integer.Sign
 import com.ionspin.kotlin.bignum.integer.chosenArithmetic
+import com.ionspin.kotlin.bignum.integer.toBigInteger
 import com.ionspin.kotlin.bignum.integer.util.times
 import kotlin.math.absoluteValue
 import kotlin.math.max
@@ -1304,8 +1305,8 @@ class BigDecimal private constructor(
 
             val power = desiredPrecision - this.precision + other.precision
             val thisPrepared = when {
-                power > 0 -> this.significand * 10.toBigInteger().pow(power)
-                power < 0 -> this.significand / 10.toBigInteger().pow(power.absoluteValue)
+                power > 0 -> this.significand * BigInteger.TEN.pow(power)
+                power < 0 -> this.significand / BigInteger.TEN.pow(power.absoluteValue)
                 else -> this.significand
             }
 
@@ -1493,10 +1494,10 @@ class BigDecimal private constructor(
         val precisionExponentDiff = exponent - precision
         return when {
             precisionExponentDiff > 0 -> {
-                significand * 10.toBigInteger().pow(precisionExponentDiff + 1)
+                significand * BigInteger.TEN.pow(precisionExponentDiff + 1)
             }
             precisionExponentDiff < 0 -> {
-                significand / 10.toBigInteger().pow(precisionExponentDiff.absoluteValue - 1)
+                significand / BigInteger.TEN.pow(precisionExponentDiff.absoluteValue - 1)
             }
             else -> {
                 significand * 10
@@ -2090,20 +2091,20 @@ class BigDecimal private constructor(
             first.exponent > second.exponent -> {
                 val moveFirstBy = firstPreparedExponent - secondPreparedExponent
                 if (moveFirstBy >= 0) {
-                    val movedFirst = firstPrepared.significand * 10.toBigInteger().pow(moveFirstBy)
+                    val movedFirst = first.significand * BigInteger.TEN.pow(moveFirstBy)
                     return Triple(movedFirst, second.significand, secondPreparedExponent)
                 } else {
-                    val movedSecond = secondPrepared.significand * 10.toBigInteger().pow(moveFirstBy * -1)
+                    val movedSecond = second.significand * BigInteger.TEN.pow(moveFirstBy * -1)
                     Triple(first.significand, movedSecond, firstPreparedExponent)
                 }
             }
             first.exponent < second.exponent -> {
                 val moveSecondBy = secondPreparedExponent - firstPreparedExponent
                 return if (moveSecondBy >= 0) {
-                    val movedSecond = secondPrepared.significand * 10.toBigInteger().pow(moveSecondBy)
+                    val movedSecond = second.significand * BigInteger.TEN.pow(moveSecondBy)
                     Triple(first.significand, movedSecond, firstPreparedExponent)
                 } else {
-                    val movedFirst = firstPrepared.significand * 10.toBigInteger().pow(moveSecondBy * -1)
+                    val movedFirst = first.significand * BigInteger.TEN.pow(moveSecondBy * -1)
                     Triple(movedFirst, second.significand, firstPreparedExponent)
                 }
             }
@@ -2111,11 +2112,11 @@ class BigDecimal private constructor(
                 val delta = firstPreparedExponent - secondPreparedExponent
                 return when {
                     delta > 0 -> {
-                        val movedFirst = first.significand * 10.toBigInteger().pow(delta)
+                        val movedFirst = first.significand * BigInteger.TEN.pow(delta)
                         Triple(movedFirst, second.significand, firstPreparedExponent)
                     }
                     delta < 0 -> {
-                        val movedSecond = second.significand * 10.toBigInteger().pow(delta * -1)
+                        val movedSecond = second.significand * BigInteger.TEN.pow(delta * -1)
                         Triple(first.significand, movedSecond, firstPreparedExponent)
                     }
                     delta.compareTo(0) == 0 -> {
