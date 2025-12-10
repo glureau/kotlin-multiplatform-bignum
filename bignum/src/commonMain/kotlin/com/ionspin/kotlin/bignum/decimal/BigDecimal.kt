@@ -890,149 +890,78 @@ class BigDecimal private constructor(
             if (floatingPointString.isEmpty()) {
                 throw ArithmeticException("Empty string is not a valid decimal number")
             }
-            if (floatingPointString.contains('E', true)) {
-                // Sci notation
-                val split = if (floatingPointString.contains('.').not()) {
-                    // As is case with JS Double.MIN_VALUE
-                    val splitAroundE = floatingPointString.split('E', 'e')
-                    listOf(splitAroundE[0], "0E" + splitAroundE[1])
-                } else {
-                    floatingPointString.split('.')
-                }
-                when (split.size) {
-                    2 -> {
-                        val signPresent = (floatingPointString[0] == '-' || floatingPointString[0] == '+')
-                        val leftStart = if (signPresent) {
-                            1
-                        } else {
-                            0
-                        }
-                        var sign = if (signPresent) {
-                            if (floatingPointString[0] == '-') {
-                                Sign.NEGATIVE
-                            } else {
-                                Sign.POSITIVE
-                            }
-                        } else {
-                            Sign.POSITIVE
-                        }
-                        val left = split[0].substring(startIndex = leftStart)
-                        val rightSplit = split[1].split('E', 'e')
-                        val right = rightSplit[0]
-                        val exponentSplit = rightSplit[1]
-                        val exponentSignPresent = (exponentSplit[0] == '-' || exponentSplit[0] == '+')
-                        val exponentSign = if (exponentSplit[0] == '-') {
-                            Sign.NEGATIVE
-                        } else {
-                            Sign.POSITIVE
-                        }
-                        val skipSignIfPresent = if (exponentSignPresent) {
-                            1
-                        } else {
-                            0
-                        }
-                        val exponentString = exponentSplit.substring(startIndex = skipSignIfPresent)
-                        val exponent = if (exponentSign == Sign.POSITIVE) {
-                            exponentString.toLong(10)
-                        } else {
-                            exponentString.toLong(10) * -1
-                        }
 
-                        var leftFirstNonZero = left.indexOfFirst { it != '0' }
-
-                        if (leftFirstNonZero == -1) {
-                            leftFirstNonZero = 0
-                        }
-
-                        var rightLastNonZero = right.indexOfLast { it != '0' }
-
-                        if (rightLastNonZero == -1) {
-                            rightLastNonZero = right.length - 1
-                        }
-                        val leftTruncated = left.substring(leftFirstNonZero, left.length)
-                        val rightTruncated = right.substring(0, rightLastNonZero + 1)
-                        var significand = BigInteger.parseString(leftTruncated + rightTruncated, 10)
-
-                        if (significand == BigInteger.ZERO) {
-                            sign = Sign.ZERO
-                        }
-                        if (sign == Sign.NEGATIVE) {
-                            significand = significand.negate()
-                        }
-                        // here we need to cover mixed scientific and expanded notationtions, such as 0.00375E-20 = 3.75E-22
-                        val exponentModifiedByFloatingPointPosition = if (leftTruncated != "0") {
-                            // i.e. 375E-37 = 3.75*10^2*10^-37 =4.75 * 10^-35
-                            exponent + leftTruncated.length - 1
-                        } else {
-                            // i.e. 0.375E-20 = 3.75 * 10^E-23
-                            exponent - (rightTruncated.length - significand.numberOfDecimalDigits()) - 1
-                        }
-                        return BigDecimal(significand, exponentModifiedByFloatingPointPosition, decimalMode)
-                    }
-                    else -> throw ArithmeticException("Invalid (or unsupported) floating point number format: $floatingPointString")
-                }
-            } else {
-                // Expanded notation
-                if (floatingPointString.contains('.')) {
-                    val split = floatingPointString.split('.')
-                    when (split.size) {
-                        2 -> {
-                            val signPresent = (floatingPointString[0] == '-' || floatingPointString[0] == '+')
-                            val leftStart = if (signPresent) {
-                                1
-                            } else {
-                                0
-                            }
-                            var sign = if (signPresent) {
-                                if (floatingPointString[0] == '-') {
-                                    Sign.NEGATIVE
-                                } else {
-                                    Sign.POSITIVE
-                                }
-                            } else {
-                                Sign.POSITIVE
-                            }
-                            val left = split[0].substring(startIndex = leftStart)
-                            val right = split[1]
-                            var leftFirstNonZero = left.indexOfFirst { it != '0' }
-
-                            if (leftFirstNonZero == -1) {
-                                leftFirstNonZero = 0
-                            }
-
-                            var rightLastNonZero = right.indexOfLast { it != '0' }
-
-                            if (rightLastNonZero == -1) {
-                                rightLastNonZero = right.length - 1
-                            }
-                            val leftTruncated = left.substring(leftFirstNonZero, left.length)
-                            val rightTruncated = right.substring(0, rightLastNonZero + 1)
-                            var significand = BigInteger.parseString(leftTruncated + rightTruncated, 10)
-                            val exponent = if (leftTruncated.isNotEmpty() && leftTruncated[0] != '0') {
-                                leftTruncated.length - 1
-                            } else {
-                                (rightTruncated.indexOfFirst { it != '0' } + 1) * -1
-                            }
-
-                            if (significand == BigInteger.ZERO) {
-                                sign = Sign.ZERO
-                            }
-                            if (sign == Sign.NEGATIVE) {
-                                significand = significand.negate()
-                            }
-                            return BigDecimal(significand, exponent.toLong(), decimalMode)
-                        }
-                        else -> throw ArithmeticException("Invalid (or unsupported) floating point number format: $floatingPointString")
-                    }
-                } else {
-                    val significand = BigInteger.parseString(floatingPointString, 10)
-                    return BigDecimal(
-                        significand,
-                        significand.numberOfDecimalDigits() - 1,
-                        decimalMode
-                    )
-                }
+            fun leadingSignInfo(s: String): Pair<Int, Sign> = when {
+                s.isEmpty() -> 0 to Sign.POSITIVE
+                s[0] == '-' -> 1 to Sign.NEGATIVE
+                s[0] == '+' -> 1 to Sign.POSITIVE
+                else -> 0 to Sign.POSITIVE
             }
+
+            fun stripZerosCombined(left: String, right: String): Triple<String, String, Boolean> {
+                val combined = left + right
+                val firstNonZero = combined.indexOfFirst { it != '0' }
+                if (firstNonZero == -1) return Triple("0", "", true)
+                val trimmed = combined.substring(firstNonZero)
+                val leftKeep = (left.length - firstNonZero).coerceAtLeast(0)
+                val newLeft = trimmed.take(leftKeep).ifEmpty { "0" }
+                val newRight = if (trimmed.length > leftKeep) trimmed.substring(leftKeep) else ""
+                return Triple(newLeft, newRight, false)
+            }
+
+            // Fast path: no scientific notation
+            val ePos = floatingPointString.indexOfFirst { it == 'E' || it == 'e' }
+            if (ePos == -1) {
+                val dotPos = floatingPointString.indexOf('.')
+                val (signSkip, baseSign) = leadingSignInfo(floatingPointString)
+
+                // Integer only
+                if (dotPos == -1) {
+                    val body = floatingPointString.substring(signSkip)
+                    var sign = baseSign
+                    var exponent = body.length - 1
+                    var significand = BigInteger.parseString(body, 10)
+                    if (significand == BigInteger.ZERO) sign = Sign.ZERO
+                    if (sign == Sign.NEGATIVE) significand = significand.negate()
+                    return BigDecimal(significand, exponent.toLong(), decimalMode)
+                }
+
+                val left = floatingPointString.substring(signSkip, dotPos)
+                val right = floatingPointString.substring(dotPos + 1)
+                val (leftTrim, rightTrim, allZero) = stripZerosCombined(left, right)
+                if (allZero) return BigDecimal.ZERO
+
+                var sign = baseSign
+                var significand = BigInteger.parseString(leftTrim + rightTrim, 10)
+                if (significand == BigInteger.ZERO) sign = Sign.ZERO
+                if (sign == Sign.NEGATIVE) significand = significand.negate()
+                val exponent = leftTrim.length - 1
+                return BigDecimal(significand, exponent.toLong(), decimalMode)
+            }
+
+            // Scientific notation path
+            val (signSkip, baseSign) = leadingSignInfo(floatingPointString)
+            val dotPosRaw = floatingPointString.indexOf('.', startIndex = signSkip)
+            val dotPos = if (dotPosRaw in signSkip until ePos) dotPosRaw else -1
+
+            val exponentSignChar = floatingPointString[ePos + 1]
+            val expSkip = if (exponentSignChar == '+' || exponentSignChar == '-') 1 else 0
+            val exponentValue = floatingPointString.substring(ePos + 1 + expSkip).toLong()
+            val exponent = if (exponentSignChar == '-') -exponentValue else exponentValue
+
+            val mantissaLeft = floatingPointString.substring(signSkip, if (dotPos == -1) ePos else dotPos)
+            val mantissaRight = if (dotPos == -1) "" else floatingPointString.substring(dotPos + 1, ePos)
+
+            val (leftTrim, rightTrim, allZero) = stripZerosCombined(mantissaLeft, mantissaRight)
+            if (allZero) return BigDecimal.ZERO
+
+            var significand = BigInteger.parseString(leftTrim + rightTrim, 10)
+            var sign = baseSign
+            if (significand == BigInteger.ZERO) sign = Sign.ZERO
+            if (sign == Sign.NEGATIVE) significand = significand.negate()
+
+            val exponentModified = exponent + leftTrim.length - 1
+            return BigDecimal(significand, exponentModified.toLong(), decimalMode)
         }
 
         private fun resolveDecimalMode(
@@ -1684,36 +1613,48 @@ class BigDecimal private constructor(
      * as division.
      */
     override fun pow(exponent: Long): BigDecimal {
-        if (this.isZero() && exponent < 0) {
+        if (exponent == 0L) return ONE
+        if (this.isZero()) {
+            if (exponent < 0) {
             throw ArithmeticException("Negative exponentiation of zero is not defined.")
         }
-        var result = this
-        return when {
-            exponent > 0 -> {
-                for (i in 0 until exponent - 1) {
-                    result *= this
-                }
-                result
-            }
-            exponent < 0 -> {
-                if (exponent == Long.MIN_VALUE) {
-                    for (i in 0..Long.MAX_VALUE) {
-                        result /= this
-                    }
-                    // And another division beacuse min value is -9223372036854775808L and max value is 9223372036854775807L
-                    result /= this
-                } else {
-                    for (i in 0..exponent.absoluteValue) {
-                        result /= this
-                    }
-                }
-
-                result
-            }
-            else -> {
-                ONE
-            }
+            return ZERO
         }
+        if (exponent == 1L) return this
+
+        // Fast exact path when no decimal mode is attached and exponent is positive: scale exponent and power significand directly.
+        if (exponent > 0 && decimalMode == null) {
+            // (significand * 10^exponent) ^ n  =>  significand^n * 10^(exponent*n)
+            val poweredSignificand = significand.pow(exponent)
+            val newExponent = this.exponent * exponent
+            return BigDecimal(poweredSignificand, newExponent, null)
+        }
+
+        if (exponent > 0) {
+            var power = this
+            var exp = exponent
+            var acc = ONE
+            while (exp > 0) {
+                if ((exp and 1L) == 1L) {
+                    acc *= power
+                }
+                exp = exp shr 1
+                if (exp > 0) {
+                    power *= power
+                }
+            }
+            return acc
+        }
+
+        // Negative exponent: compute reciprocal of the positive power.
+        val positiveExponent = if (exponent == Long.MIN_VALUE) Long.MAX_VALUE else exponent.absoluteValue
+        val positivePow = this.pow(positiveExponent)
+        val fullPow = if (exponent == Long.MIN_VALUE) {
+            positivePow * this
+        } else {
+            positivePow
+        }
+        return ONE.divide(fullPow)
     }
 
     /**
