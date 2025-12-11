@@ -236,107 +236,85 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
     }
 
     override fun shiftLeft(operand: ULongArray, places: Int): ULongArray {
-        if (operand.isZero()) {
-            return operand
-        }
-        if (places == 0) {
-            return operand
-        }
+        if (operand.isZero()) return ZERO
+        if (places == 0) return operand
 
-        if (operand.isEmpty()) {
-            return ZERO
-        }
+        val wordShift = places / 63
+        val bitShift = places % 63
+        val resultSize = operand.size + wordShift + 1
+        val result = ULongArray(resultSize)
 
-        val leadingZeroWords =
-            countLeadingZeroWords(
-                operand
-            )
-        if (operand.size == leadingZeroWords) {
-            return ZERO
-        }
-
-        val originalSize = operand.size - leadingZeroWords
-        val leadingZeros =
-            numberOfLeadingZerosInAWord(
-                operand[originalSize - 1]
-            )
-        val shiftWords = places / basePowerOfTwo
-        val shiftBits = places % basePowerOfTwo
-        val wordsNeeded = if (shiftBits > leadingZeros) {
-            shiftWords + 1
+        if (bitShift == 0) {
+            // Pure memory copy
+            operand.copyInto(result, wordShift, 0, operand.size)
         } else {
-            shiftWords
-        }
-        if (shiftBits == 0) {
-            return ULongArray(originalSize + wordsNeeded) {
-                when (it) {
-                    in 0 until shiftWords -> 0U
-                    else -> operand[it - shiftWords]
-                }
+            val invShift = 63 - bitShift
+            // Process words
+            for (i in 0 until operand.size) {
+                val w = operand[i]
+                result[i + wordShift] = result[i + wordShift] or ((w shl bitShift) and baseMask)
+                result[i + wordShift + 1] = (w shr invShift) // Carry to next word
             }
         }
-        return ULongArray(originalSize + wordsNeeded) {
-            when (it) {
-                in 0 until shiftWords -> 0U
-                shiftWords -> {
-                    (operand[it - shiftWords] shl shiftBits) and baseMask
-                }
-                in (shiftWords + 1) until (originalSize + shiftWords) -> {
-                    ((operand[it - shiftWords] shl shiftBits) and baseMask) or (operand[it - shiftWords - 1] shr (basePowerOfTwo - shiftBits))
-                }
-                originalSize + wordsNeeded - 1 -> {
-                    (operand[it - wordsNeeded] shr (basePowerOfTwo - shiftBits))
-                }
-                else -> {
-                    throw RuntimeException("Invalid case $it")
-                }
-            }
-        }
+        return removeLeadingZeros(result)
     }
 
     override fun shiftRight(operand: ULongArray, places: Int): ULongArray {
-        if (operand.isEmpty() || places == 0) {
-            return operand
-        }
-        val leadingZeroWords =
-            countLeadingZeroWords(
-                operand
-            )
+        // 1. Trivial edge cases
+        if (operand.isZero()) return ZERO
+        if (places == 0) return operand
+
+        // 2. Calculate logical size (ignoring leading zero words in the array)
+        val leadingZeroWords = countLeadingZeroWords(operand)
         val realOperandSize = operand.size - leadingZeroWords
-        val shiftBits = (places % basePowerOfTwo)
-        val wordsToDiscard = places / basePowerOfTwo
-        if (wordsToDiscard >= realOperandSize) {
+
+        // 3. Calculate shift parameters
+        val wordShift = places / basePowerOfTwo // basePowerOfTwo is 63
+        val shiftBits = places % basePowerOfTwo
+
+        // 4. If we shift more words than exist, result is zero
+        if (wordShift >= realOperandSize) {
             return ZERO
         }
 
+        val newLength = realOperandSize - wordShift
+        val result = ULongArray(newLength)
+
+        // 5. Case A: Aligned Shift (Multiple of 63)
+        // We just copy the upper words down to position 0.
         if (shiftBits == 0) {
-            operand.copyOfRange(realOperandSize - wordsToDiscard, realOperandSize)
+            // copyInto(destination, destinationOffset, startIndex, endIndex)
+            // We copy from 'wordShift' up to 'realOperandSize' into the start of 'result'
+            operand.copyInto(result, 0, wordShift, realOperandSize)
+            return result // No trailing zeros cleanup needed usually, but safe to return
         }
 
-        if (realOperandSize > 1 && realOperandSize - wordsToDiscard == 1) {
-            return ulongArrayOf((operand[realOperandSize - 1] shr shiftBits))
-        }
+        // 6. Case B: Unaligned Shift (Bit manipulation required)
+        val invShift = basePowerOfTwo - shiftBits // 63 - shiftBits
 
-        val newLength = realOperandSize - wordsToDiscard
-        if (newLength == 0) {
-            return ZERO
-        }
+        // We iterate 0..newLength-1.
+        // Each result word is a combination of the current word shifted right
+        // and the *next* word shifted left (to fill the gap).
+        for (i in 0 until newLength) {
+            val sourceIndex = i + wordShift
 
-        val result = ULongArray(realOperandSize - wordsToDiscard) {
-            when (it) {
-                in 0 until (realOperandSize - 1 - wordsToDiscard) -> {
-                    ((operand[it + wordsToDiscard] shr shiftBits)) or
-                            ((operand[it + wordsToDiscard + 1] shl (basePowerOfTwo - shiftBits) and baseMask))
-                }
-                realOperandSize - 1 - wordsToDiscard -> {
-                    (operand[it + wordsToDiscard] shr shiftBits)
-                }
-                else -> {
-                    throw RuntimeException("Invalid case $it")
-                }
+            // Get lower part from current word
+            val term1 = operand[sourceIndex] shr shiftBits
+
+            // Get upper part from next word (if it exists within the real data)
+            // We use 'realOperandSize' boundary here.
+            val term2 = if (sourceIndex + 1 < realOperandSize) {
+                (operand[sourceIndex + 1] shl invShift) and baseMask
+            } else {
+                0UL
             }
+
+            result[i] = term1 or term2
         }
-        return result
+
+        // 7. Remove potential leading zeros resulting from the shift
+        // (e.g., shifting 0x0000_0001 right by 1 becomes 0)
+        return removeLeadingZeros(result)
     }
 
     fun compareWithStartIndexes(first: ULongArray, second: ULongArray, firstStart: Int, secondStart: Int): Int {
