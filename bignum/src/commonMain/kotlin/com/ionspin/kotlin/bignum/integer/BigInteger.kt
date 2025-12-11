@@ -27,6 +27,7 @@ import com.ionspin.kotlin.bignum.decimal.BigDecimal
 import com.ionspin.kotlin.bignum.integer.base63.array.BigInteger63Arithmetic
 import com.ionspin.kotlin.bignum.integer.base63.array.BigInteger63Arithmetic.compareTo
 import com.ionspin.kotlin.bignum.modular.ModularBigInteger
+import kotlin.concurrent.Volatile
 import kotlin.math.floor
 import kotlin.math.log10
 
@@ -81,10 +82,11 @@ class BigInteger internal constructor(wordArray: WordArray, requestedSign: Sign)
 
         val LOG_10_OF_2 = log10(2.0)
 
-        private val powersOfTenCache = mutableListOf(ONE, TEN)
+        @Volatile
+        private var powersOfTenCache = listOf(ONE, TEN)
         fun tenPow(exponent: Long): BigInteger {
             if (exponent < 0) throw ArithmeticException("Negative power of 10")
-            if (exponent > Int.MAX_VALUE) return tenPow(exponent) // Fallback for insane sizes
+            if (exponent > Int.MAX_VALUE) return TEN.pow(exponent) // Fallback for insane sizes
 
             val expInt = exponent.toInt()
 
@@ -94,13 +96,17 @@ class BigInteger internal constructor(wordArray: WordArray, requestedSign: Sign)
             }
 
             // Slow path: Fill cache up to needed exponent
-            // Optimization: Synchronize this block in JVM
-            var current = powersOfTenCache.last()
-            for (i in powersOfTenCache.size..expInt) {
+            val newCache = powersOfTenCache.toMutableList()
+            var current = newCache.last()
+            for (i in newCache.size..expInt) {
                 current *= TEN
-                powersOfTenCache.add(current)
+                newCache.add(current)
             }
-            return powersOfTenCache[expInt]
+            // If another thread already updated that cache, don't overwrite with smaller one
+            if (newCache.size > powersOfTenCache.size) {
+                powersOfTenCache = newCache
+            }
+            return newCache[expInt]
         }
 
         fun createFromWordArray(wordArray: WordArray, requestedSign: Sign): BigInteger {
