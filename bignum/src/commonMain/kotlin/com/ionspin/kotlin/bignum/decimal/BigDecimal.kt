@@ -84,7 +84,7 @@ class BigDecimal private constructor(
                 decimalMode = _decimalMode.copy(decimalPrecision = newPrecision)
             } else {
                 significand = wrk.significand
-                exponent = wrk.exponent.times(_decimalMode.decimalPrecision + _decimalMode.scale)
+                exponent = wrk.exponent
                 precision = _decimalMode.decimalPrecision + _decimalMode.scale
                 decimalMode = _decimalMode.copy(decimalPrecision = precision)
             }
@@ -1313,13 +1313,15 @@ class BigDecimal private constructor(
             if (result == BigInteger.ZERO) {
                 newExponent--
             }
-            val exponentModifier = result.numberOfDecimalDigits() - resolvedDecimalMode.decimalPrecision
+            // Cache numberOfDecimalDigits() result to avoid calling it twice
+            val resultNumOfDigits = result.numberOfDecimalDigits()
+            val exponentModifier = resultNumOfDigits - resolvedDecimalMode.decimalPrecision
 
             return if (usingScale) {
                 BigDecimal(
                     roundDiscarded(result, divRem.remainder, resolvedDecimalMode),
                     newExponent + exponentModifier,
-                    resolvedDecimalMode.copy(decimalPrecision = result.numberOfDecimalDigits())
+                    resolvedDecimalMode.copy(decimalPrecision = resultNumOfDigits)
                 )
             } else {
                 BigDecimal(
@@ -2070,7 +2072,8 @@ class BigDecimal private constructor(
     }
 
     private fun getRidOfRadix(bigDecimal: BigDecimal): Long {
-        val precision = bigDecimal.significand.numberOfDecimalDigits()
+        // Use cached precision instead of recalculating numberOfDecimalDigits()
+        val precision = bigDecimal.precision
         val newExponent = bigDecimal.exponent - precision + 1
         return newExponent
     }
