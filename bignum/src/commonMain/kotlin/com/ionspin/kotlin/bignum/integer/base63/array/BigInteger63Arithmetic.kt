@@ -19,7 +19,6 @@ package com.ionspin.kotlin.bignum.integer.base63.array
 
 import com.ionspin.kotlin.bignum.integer.BigInteger
 import com.ionspin.kotlin.bignum.integer.BigIntegerArithmetic
-import com.ionspin.kotlin.bignum.integer.Quadruple
 import com.ionspin.kotlin.bignum.integer.base32.BigInteger32Arithmetic
 import com.ionspin.kotlin.bignum.integer.util.toBigEndianUByteArray
 import com.ionspin.kotlin.bignum.integer.util.toDigit
@@ -590,11 +589,11 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
         if (!firstIsLarger) {
             throw RuntimeException("subtract result less than zero")
         }
-        val (largerData, smallerData, largerStart, smallerStart) = if (firstIsLarger) {
-            Quadruple(first, second, firstStart, secondStart)
-        } else {
-            Quadruple(second, first, secondStart, firstStart)
-        }
+        val largerData = if (firstIsLarger) first else second
+        val smallerData = if (firstIsLarger) second else first
+        val largerStart = if (firstIsLarger) firstStart else secondStart
+        val smallerStart = if (firstIsLarger) secondStart else firstStart
+
         val result = ULongArray(largerStart) { 0U }
         var i = 0
         var diff: ULong = 0u
