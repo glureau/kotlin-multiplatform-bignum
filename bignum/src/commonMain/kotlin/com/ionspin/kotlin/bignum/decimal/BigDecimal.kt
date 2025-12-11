@@ -430,10 +430,13 @@ class BigDecimal private constructor(
                         return RoundedSignificand(divRem.quotient, exponent)
                     }
                     // Check if remainder was .0XXX if so handle it
-                    if (significand.numberOfDecimalDigits() == divRem.quotient.numberOfDecimalDigits() + divRem.remainder.numberOfDecimalDigits()) {
+                    // Cache digit counts to avoid multiple calls
+                    val quotientDigits = divRem.quotient.numberOfDecimalDigits()
+                    val remainderDigits = divRem.remainder.numberOfDecimalDigits()
+                    if (significandDigits == quotientDigits + remainderDigits) {
                         val newSignificand = roundDiscarded(divRem.quotient, resolvedRemainder, decimalMode)
                         val exponentModifier =
-                            newSignificand.numberOfDecimalDigits() - divRem.quotient.numberOfDecimalDigits()
+                            newSignificand.numberOfDecimalDigits() - quotientDigits
                         RoundedSignificand(newSignificand, exponent + exponentModifier)
                     } else {
                         handleZeroRounding(divRem.quotient, exponent, decimalMode)
@@ -1103,19 +1106,13 @@ class BigDecimal private constructor(
             return roundOrDont(this.significand, this.exponent, resolvedDecimalMode).toBigDecimal(resolvedDecimalMode)
         }
         val (first, second, _) = bringSignificandToSameExponent(this, other)
-        // Temporary way to detect a carry happened, proper solution is to add
-        // methods that return information about carry in arithmetic classes, this way it's going
-        // to be rather slow
-        val firstNumOfDigits = first.numberOfDecimalDigits()
-        val secondNumOfDigits = second.numberOfDecimalDigits()
+        // Optimized carry detection: use cached precision from original BigDecimals to estimate
+        // expected digit count, then only call numberOfDecimalDigits() on result
+        val expectedMaxDigits = max(this.precision, other.precision)
         val newSignificand = first + second
+        // Only call numberOfDecimalDigits() once on the result (not on operands)
         val newSignificandNumOfDigit = newSignificand.numberOfDecimalDigits()
-        val largerOperand = if (firstNumOfDigits > secondNumOfDigits) {
-            firstNumOfDigits
-        } else {
-            secondNumOfDigits
-        }
-        val carryDetected = newSignificandNumOfDigit - largerOperand
+        val carryDetected = newSignificandNumOfDigit - expectedMaxDigits
         val newExponent = max(this.exponent, other.exponent) + carryDetected
 
         return if (resolvedDecimalMode.usingScale) {
@@ -1163,19 +1160,12 @@ class BigDecimal private constructor(
 
         val (first, second, _) = bringSignificandToSameExponent(this, other)
 
-        val firstNumOfDigits = first.numberOfDecimalDigits()
-        val secondNumOfDigits = second.numberOfDecimalDigits()
-
+        // Optimized borrow detection: use cached precision from original BigDecimals
+        val expectedMaxDigits = max(this.precision, other.precision)
         val newSignificand = first - second
-
+        // Only call numberOfDecimalDigits() on result, not on operands
         val newSignificandNumOfDigit = newSignificand.numberOfDecimalDigits()
-
-        val largerOperand = if (firstNumOfDigits > secondNumOfDigits) {
-            firstNumOfDigits
-        } else {
-            secondNumOfDigits
-        }
-        val borrowDetected = newSignificandNumOfDigit - largerOperand
+        val borrowDetected = newSignificandNumOfDigit - expectedMaxDigits
 
         val newExponent = max(this.exponent, other.exponent) + borrowDetected
         if (usingScale) {
@@ -1257,8 +1247,11 @@ class BigDecimal private constructor(
             val divRem = thisPrepared divrem other.significand
             val result = divRem.quotient
             val expectedDiff = other.precision - 1
+            // Cache numberOfDecimalDigits() results to avoid redundant calls
+            val resultDigits = result.numberOfDecimalDigits()
+            val thisPreparedDigits = thisPrepared.numberOfDecimalDigits()
             val exponentModifier =
-                expectedDiff + (result.numberOfDecimalDigits() - thisPrepared.numberOfDecimalDigits())
+                expectedDiff + (resultDigits - thisPreparedDigits)
 
             if (divRem.remainder != BigInteger.ZERO) {
                 throw ArithmeticException(
@@ -1289,13 +1282,15 @@ class BigDecimal private constructor(
             if (result == BigInteger.ZERO) {
                 newExponent--
             }
-            val exponentModifier = result.numberOfDecimalDigits() - resolvedDecimalMode.decimalPrecision
+            // Cache numberOfDecimalDigits() result to avoid calling it twice
+            val resultNumOfDigits = result.numberOfDecimalDigits()
+            val exponentModifier = resultNumOfDigits - resolvedDecimalMode.decimalPrecision
 
             return if (usingScale) {
                 BigDecimal(
                     roundDiscarded(result, divRem.remainder, resolvedDecimalMode),
                     newExponent + exponentModifier,
-                    resolvedDecimalMode.copy(decimalPrecision = result.numberOfDecimalDigits())
+                    resolvedDecimalMode.copy(decimalPrecision = resultNumOfDigits)
                 )
             } else {
                 BigDecimal(
@@ -2058,7 +2053,8 @@ class BigDecimal private constructor(
     }
 
     private fun getRidOfRadix(bigDecimal: BigDecimal): Long {
-        val precision = bigDecimal.significand.numberOfDecimalDigits()
+        // Use cached precision instead of recalculating numberOfDecimalDigits()
+        val precision = bigDecimal.precision
         val newExponent = bigDecimal.exponent - precision + 1
         return newExponent
     }
