@@ -62,41 +62,16 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
     const val debugEnabled = false
 
     override fun numberOfLeadingZerosInAWord(value: ULong): Int {
-        var x = value
-        var y: ULong
-        var n = 63
+        // value.countLeadingZeroBits() returns 0..64.
+        // Since we are in Base 2^63, we effectively ignore the 64th bit (MSB).
+        // If the number is 0, your logic returns 63.
+        if (value == 0UL) return 63
 
-        y = x shr 32
-        if (y != 0UL) {
-            n = n - 32
-            x = y
-        }
-        y = x shr 16
-        if (y != 0UL) {
-            n = n - 16
-            x = y
-        }
-        y = x shr 8
-        if (y != 0UL) {
-            n = n - 8
-            x = y
-        }
-        y = x shr 4
-        if (y != 0UL) {
-            n = n - 4
-            x = y
-        }
-        y = x shr 2
-        if (y != 0UL) {
-            n = n - 2
-            x = y
-        }
-        y = x shr 1
-        if (y != 0UL) {
-            return n - 2
-        }
-
-        return n - x.toInt()
+        val lz = value.countLeadingZeroBits()
+        // Adjust for 63-bit word (Standard ULong is 64-bit)
+        // If lz is 0 (bit 63 is set), that's illegal in base 63 usually, or treated as carry.
+        // Assuming valid 63-bit input:
+        return lz - 1
     }
 
     fun numberOfLeadingZeroesInA64BitWord(value: ULong): Int {
