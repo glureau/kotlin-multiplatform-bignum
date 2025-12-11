@@ -482,6 +482,20 @@ class BigInteger internal constructor(wordArray: WordArray, requestedSign: Sign)
             chosenArithmetic.compare(this.magnitude, chosenArithmetic.ZERO) == 0
     }
 
+    fun isPowerOfTen(): Boolean {
+        if (this.isZero() || this.isNegative) return false
+        if (this == ONE) return true
+        // Quick check: last digit must be 0
+        if ((this % TEN) != ZERO) return false
+        var value = this
+        while (value > TEN) {
+            val divRem = value divrem TEN
+            if (divRem.remainder != ZERO) return false
+            value = divRem.quotient
+        }
+        return value == TEN || value == ONE
+    }
+
     override fun negate(): BigInteger {
         return BigInteger(wordArray = this.magnitude, requestedSign = sign.not())
     }

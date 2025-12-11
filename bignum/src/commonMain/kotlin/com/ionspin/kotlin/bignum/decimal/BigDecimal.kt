@@ -898,15 +898,42 @@ class BigDecimal private constructor(
                 else -> 0 to Sign.POSITIVE
             }
 
-            fun stripZerosCombined(left: String, right: String): Triple<String, String, Boolean> {
-                val combined = left + right
-                val firstNonZero = combined.indexOfFirst { it != '0' }
-                if (firstNonZero == -1) return Triple("0", "", true)
-                val trimmed = combined.substring(firstNonZero)
-                val leftKeep = (left.length - firstNonZero).coerceAtLeast(0)
-                val newLeft = trimmed.take(leftKeep).ifEmpty { "0" }
-                val newRight = if (trimmed.length > leftKeep) trimmed.substring(leftKeep) else ""
-                return Triple(newLeft, newRight, false)
+            fun stripZerosCombined(left: String, right: String): Triple<Int, Int, Int> {
+                // Find first non-zero digit without concatenating strings
+                var firstNonZero = -1
+                var i = 0
+                while (i < left.length && firstNonZero == -1) {
+                    if (left[i] != '0') firstNonZero = i
+                    i++
+                }
+                if (firstNonZero == -1) {
+                    i = 0
+                    while (i < right.length && firstNonZero == -1) {
+                        if (right[i] != '0') firstNonZero = left.length + i
+                        i++
+                    }
+                }
+                if (firstNonZero == -1) return Triple(-1, -1, -1) // all zeros
+                
+                // Find last non-zero digit
+                var lastNonZero = -1
+                i = right.length - 1
+                while (i >= 0 && lastNonZero == -1) {
+                    if (right[i] != '0') lastNonZero = left.length + i
+                    i--
+                }
+                if (lastNonZero == -1) {
+                    i = left.length - 1
+                    while (i >= 0 && lastNonZero == -1) {
+                        if (left[i] != '0') lastNonZero = i
+                        i--
+                    }
+                }
+                // Return: start index in left, end index in right (inclusive), total length
+                val leftStart = if (firstNonZero < left.length) firstNonZero else 0
+                val rightEnd = if (lastNonZero >= left.length) lastNonZero - left.length else -1
+                val totalLen = lastNonZero - firstNonZero + 1
+                return Triple(leftStart, rightEnd, totalLen)
             }
 
             // Fast path: no scientific notation
@@ -928,14 +955,24 @@ class BigDecimal private constructor(
 
                 val left = floatingPointString.substring(signSkip, dotPos)
                 val right = floatingPointString.substring(dotPos + 1)
-                val (leftTrim, rightTrim, allZero) = stripZerosCombined(left, right)
-                if (allZero) return BigDecimal.ZERO
+                val (leftStart, rightEnd, totalLen) = stripZerosCombined(left, right)
+                if (totalLen == -1) return BigDecimal.ZERO
 
+                // Build significand string without concatenation overhead
+                val significandStr = buildString(totalLen) {
+                    if (leftStart < left.length) {
+                        append(left, leftStart)
+                    }
+                    if (rightEnd >= 0) {
+                        append(right, 0, rightEnd + 1)
+                    }
+                }
                 var sign = baseSign
-                var significand = BigInteger.parseString(leftTrim + rightTrim, 10)
+                var significand = BigInteger.parseString(significandStr, 10)
                 if (significand == BigInteger.ZERO) sign = Sign.ZERO
                 if (sign == Sign.NEGATIVE) significand = significand.negate()
-                val exponent = leftTrim.length - 1
+                val leftTrimLen = if (leftStart < left.length) left.length - leftStart else 0
+                val exponent = leftTrimLen - 1
                 return BigDecimal(significand, exponent.toLong(), decimalMode)
             }
 
@@ -952,15 +989,25 @@ class BigDecimal private constructor(
             val mantissaLeft = floatingPointString.substring(signSkip, if (dotPos == -1) ePos else dotPos)
             val mantissaRight = if (dotPos == -1) "" else floatingPointString.substring(dotPos + 1, ePos)
 
-            val (leftTrim, rightTrim, allZero) = stripZerosCombined(mantissaLeft, mantissaRight)
-            if (allZero) return BigDecimal.ZERO
+            val (leftStart, rightEnd, totalLen) = stripZerosCombined(mantissaLeft, mantissaRight)
+            if (totalLen == -1) return BigDecimal.ZERO
 
-            var significand = BigInteger.parseString(leftTrim + rightTrim, 10)
+            // Build significand string without concatenation overhead
+            val significandStr = buildString(totalLen) {
+                if (leftStart < mantissaLeft.length) {
+                    append(mantissaLeft, leftStart)
+                }
+                if (rightEnd >= 0) {
+                    append(mantissaRight, 0, rightEnd + 1)
+                }
+            }
+            var significand = BigInteger.parseString(significandStr, 10)
             var sign = baseSign
             if (significand == BigInteger.ZERO) sign = Sign.ZERO
             if (sign == Sign.NEGATIVE) significand = significand.negate()
 
-            val exponentModified = exponent + leftTrim.length - 1
+            val leftTrimLen = if (leftStart < mantissaLeft.length) mantissaLeft.length - leftStart else 0
+            val exponentModified = exponent + leftTrimLen - 1
             return BigDecimal(significand, exponentModified.toLong(), decimalMode)
         }
 
@@ -1165,11 +1212,9 @@ class BigDecimal private constructor(
      */
     fun multiply(other: BigDecimal, decimalMode: DecimalMode? = null): BigDecimal {
         val resolvedDecimalMode = resolveDecimalMode(this.decimalMode, other.decimalMode, decimalMode)
-        // Temporary way to detect a carry happened, proper solution is to add
-        // methods that return information about carry in arithmetic classes, this way it's going
-        // to be rather slow
-        val firstNumOfDigits = this.significand.numberOfDecimalDigits()
-        val secondNumOfDigits = other.significand.numberOfDecimalDigits()
+        // Optimize: use cached precision when available to avoid repeated numberOfDecimalDigits() calls
+        val firstNumOfDigits = this.precision
+        val secondNumOfDigits = other.precision
 
         val newSignificand = this.significand * other.significand
 
