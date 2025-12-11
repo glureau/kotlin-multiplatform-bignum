@@ -1236,11 +1236,9 @@ class BigDecimal private constructor(
      */
     fun multiply(other: BigDecimal, decimalMode: DecimalMode? = null): BigDecimal {
         val resolvedDecimalMode = resolveDecimalMode(this.decimalMode, other.decimalMode, decimalMode)
-        // Temporary way to detect a carry happened, proper solution is to add
-        // methods that return information about carry in arithmetic classes, this way it's going
-        // to be rather slow
-        val firstNumOfDigits = this.significand.numberOfDecimalDigits()
-        val secondNumOfDigits = other.significand.numberOfDecimalDigits()
+        // Optimize: use cached precision when available to avoid repeated numberOfDecimalDigits() calls
+        val firstNumOfDigits = this.precision
+        val secondNumOfDigits = other.precision
 
         val newSignificand = this.significand * other.significand
 
