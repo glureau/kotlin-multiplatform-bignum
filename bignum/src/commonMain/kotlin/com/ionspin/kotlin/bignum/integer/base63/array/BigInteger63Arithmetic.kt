@@ -693,12 +693,9 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
     }
 
     fun basecaseMultiply(first: ULongArray, second: ULongArray): ULongArray {
-        val firstCorrectedSizeStart = first.size - countLeadingZeroWords(
-            first
-        )
-        val secondCorrectedSizeStart = second.size - countLeadingZeroWords(
-            second
-        )
+        val firstCorrectedSizeStart = first.size - countLeadingZeroWords(first)
+        val secondCorrectedSizeStart = second.size - countLeadingZeroWords(second)
+
         return basecaseMultiplyWithCorrectedSize(
             first,
             second,
@@ -710,22 +707,87 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
     private fun basecaseMultiplyWithCorrectedSize(
         first: ULongArray,
         second: ULongArray,
-        firstCorrectedSizeStart: Int,
-        secondCorrectedSizeStart: Int
+        firstCorrectedSize: Int,
+        secondCorrectedSize: Int
     ): ULongArray {
+        // Allocate result array once.
+        // Size is sum of lengths + 1 for potential carry.
+        val result = ULongArray(firstCorrectedSize + secondCorrectedSize)
 
-        var resultArray = ZERO
-        second.forEachIndexed { index: Int, element: ULong ->
-            if (index > secondCorrectedSizeStart) {
-                resultArray
-            } else {
-                resultArray = resultArray + (baseMultiply(
-                    first,
-                    element
-                ) shl (index * basePowerOfTwo))
+        // Iterate over the multiplier (second operand)
+        for (i in 0 until secondCorrectedSize) {
+            val y = second[i]
+
+            // Optimization: Pre-split Y into 32-bit chunks
+            val yLow = y and 0xFFFFFFFFUL
+            val yHigh = y shr 32
+
+            var carry = 0UL
+
+            // Iterate over the multiplicand (first operand)
+            for (j in 0 until firstCorrectedSize) {
+                val x = first[j]
+
+                // --- Safe 128-bit Multiplication Logic ---
+                // We split 64-bit multiplication into four 32-bit multiplications
+                // to capture the full 128-bit result manually.
+
+                val xLow = x and 0xFFFFFFFFUL
+                val xHigh = x shr 32
+
+                // 1. Calculate the raw 64-bit parts of the 128-bit product
+                // x * y = (xHigh * 2^32 + xLow) * (yHigh * 2^32 + yLow)
+
+                val t1 = xLow * yLow
+                val t2 = xLow * yHigh
+                val t3 = xHigh * yLow
+                val t4 = xHigh * yHigh
+
+                // Combine middle terms
+                val t1High = t1 shr 32
+                val midSum = t2 + t3 + t1High
+                val midLow = midSum and 0xFFFFFFFFUL
+                val midHigh = midSum shr 32
+
+                // Reassemble into two 64-bit words representing the 128-bit product
+                val productLow64 = (t1 and 0xFFFFFFFFUL) or (midLow shl 32)
+                val productHigh64 = t4 + midHigh
+
+                // --- Convert to Base 63 ---
+                // We need the result relative to 2^63, not 2^64.
+                // Low part: lower 63 bits of productLow64
+                // High part: (productHigh64 << 1) | (64th bit of productLow64)
+
+                val pLo = productLow64 and baseMask
+                val pHi = (productHigh64 shl 1) or (productLow64 shr 63)
+
+                // --- Accumulate into Result ---
+                // We need to do: result[i+j] + pLo + carry
+                // This sum can exceed 64 bits (3 items of ~63 bits), so we sum in steps.
+
+                val currentVal = result[i + j]
+
+                // Step 1: Add pLo to current accumulator
+                val sum1 = currentVal + pLo
+                val sum1Carry = sum1 shr 63 // Capture overflow beyond 63 bits
+                val sum1Base = sum1 and baseMask
+
+                // Step 2: Add the loop carry to that result
+                val sum2 = sum1Base + carry
+                val sum2Carry = sum2 shr 63 // Capture overflow beyond 63 bits
+
+                // Store final 63-bit value
+                result[i + j] = sum2 and baseMask
+
+                // Update carry for next iteration
+                // New carry is the High part of product + any overflows from addition
+                carry = pHi + sum1Carry + sum2Carry
             }
+            // Store remaining carry in the next word
+            result[i + firstCorrectedSize] = carry
         }
-        return resultArray
+
+        return removeLeadingZeros(result)
     }
 
     fun combaMultiply(first: ULongArray, second: ULongArray) {
