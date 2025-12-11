@@ -81,6 +81,28 @@ class BigInteger internal constructor(wordArray: WordArray, requestedSign: Sign)
 
         val LOG_10_OF_2 = log10(2.0)
 
+        private val powersOfTenCache = mutableListOf(ONE, TEN)
+        fun tenPow(exponent: Long): BigInteger {
+            if (exponent < 0) throw ArithmeticException("Negative power of 10")
+            if (exponent > Int.MAX_VALUE) return tenPow(exponent) // Fallback for insane sizes
+
+            val expInt = exponent.toInt()
+
+            // Fast path: return from cache
+            if (expInt < powersOfTenCache.size) {
+                return powersOfTenCache[expInt]
+            }
+
+            // Slow path: Fill cache up to needed exponent
+            // Optimization: Synchronize this block in JVM
+            var current = powersOfTenCache.last()
+            for (i in powersOfTenCache.size..expInt) {
+                current *= TEN
+                powersOfTenCache.add(current)
+            }
+            return powersOfTenCache[expInt]
+        }
+
         fun createFromWordArray(wordArray: WordArray, requestedSign: Sign): BigInteger {
             return BigInteger(wordArray, requestedSign)
         }
@@ -584,32 +606,31 @@ class BigInteger internal constructor(wordArray: WordArray, requestedSign: Sign)
     }
 
     override fun numberOfDecimalDigits(): Long {
-        if (isZero()) {
-            return 1
-        }
-        // Search through firsts powersOf10
-        val powersOf10 = BigInteger63Arithmetic.powersOf10
-        val quickSearch = powersOf10.indexOfFirst { it > magnitude }
-        if (quickSearch != -1) {
-            return quickSearch.toLong()
-        }
-//        val bitLength = arithmetic.bitLength(magnitude)
-//        val minDigit = ceil((bitLength - 1) * LOG_10_OF_2)
-//        val maxDigit = floor(bitLenght * LOG_10_OF_2) + 1
-//        val correct = this / 10.toBigInteger().pow(maxDigit.toInt())
-//        return when {
-//            correct == ZERO -> maxDigit.toInt() - 1
-//            correct > 0 && correct < 10 -> maxDigit.toInt()
-//            else -> -1
-//        }
+        if (isZero()) return 1
+        if (this.isNegative) return this.abs().numberOfDecimalDigits()
 
-        var tmp = this / TEN.pow(powersOf10.size)
-        var counter = 0L
-        while (!tmp.isZero()) {
-            tmp /= 10
-            counter++
+        // 1. Approximate using bit length.
+        // log10(x) = log2(x) * log10(2)
+        val bitLen = this.bitLength()
+        val approximateDigits = floor((bitLen - 1) * LOG_10_OF_2).toLong() + 1
+
+        // 2. We need 10^approximateDigits to verify.
+        // (Note: Requires the Cache improvement below to be truly fast,
+        // otherwise utilize a static/companion power function)
+        val lowerBound = tenPow(approximateDigits - 1)
+
+        return if (this < lowerBound) {
+            approximateDigits - 1
+        } else {
+            // Check upper bound (power of 10 with approximateDigits)
+            // Usually we don't need to check upper bound if we trust the floor logic,
+            // but to be safe against edge cases where 10^k has same bit len:
+            if (this >= lowerBound * TEN) {
+                approximateDigits + 1
+            } else {
+                approximateDigits
+            }
         }
-        return counter + powersOf10.size
     }
 
     override infix fun shl(places: Int): BigInteger {
