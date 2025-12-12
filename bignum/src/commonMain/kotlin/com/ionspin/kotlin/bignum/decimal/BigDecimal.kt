@@ -61,7 +61,8 @@ import kotlin.math.min
 class BigDecimal private constructor(
     _significand: BigInteger,
     _exponent: Long = 0L,
-    _decimalMode: DecimalMode? = null
+    _decimalMode: DecimalMode? = null,
+    _trustedPrecision: Long? = null,
 ) : BigNumber<BigDecimal>,
     CommonBigNumberOperations<BigDecimal>,
     NarrowingOperations<BigDecimal>,
@@ -74,7 +75,14 @@ class BigDecimal private constructor(
     val decimalMode: DecimalMode?
 
     init {
-        if (_decimalMode != null && _decimalMode.usingScale) {
+        // OPTIMIZATION: Fast path. If we know the precision, assume the caller
+        // has already handled scaling and rounding.
+        if (_trustedPrecision != null) {
+            significand = _significand
+            exponent = _exponent
+            decimalMode = _decimalMode
+            precision = _trustedPrecision
+        } else if (_decimalMode != null && _decimalMode.usingScale) {
             val wrk = applyScale(_significand, _exponent, _decimalMode)
             if (wrk.significand.isZero().not()) {
                 significand = wrk.significand
@@ -134,14 +142,18 @@ class BigDecimal private constructor(
         private val maximumFloat = fromFloat(Float.MAX_VALUE)
         private val leastSignificantFloat = fromFloat(Float.MIN_VALUE)
 
-        private fun roundOrDont(significand: BigInteger, exponent: Long, decimalMode: DecimalMode): RoundedSignificand {
+        private fun roundOrDont(
+            significand: BigInteger,
+            exponent: Long,
+            decimalMode: DecimalMode,
+            knownDigits: Long? = null
+        ): RoundedSignificand {
             return if (decimalMode.isPrecisionUnlimited) {
                 RoundedSignificand(significand, exponent, skipDecimalMode = true)
             } else {
-                roundSignificand(significand, exponent, decimalMode)
+                roundSignificand(significand, exponent, decimalMode, knownDigits)
             }
         }
-
         private enum class SignificantDecider {
             FIVE, LESS_THAN_FIVE, MORE_THAN_FIVE
         }
@@ -174,9 +186,11 @@ class BigDecimal private constructor(
         private fun roundDiscarded(
             significand: BigInteger,
             discarded: BigInteger,
-            decimalMode: DecimalMode
+            decimalMode: DecimalMode,
+            knownSignificandDigits: Long? = null
         ): BigInteger {
-            val toDiscard = significand.numberOfDecimalDigits() - decimalMode.decimalPrecision
+            val digits = knownSignificandDigits ?: significand.numberOfDecimalDigits()
+            val toDiscard = digits - decimalMode.decimalPrecision
             var (result, remainder) = if (toDiscard > 0) {
                 val additionallyDiscarded = (significand divrem BigInteger.tenPow(toDiscard))
                 Pair(additionallyDiscarded.quotient, additionallyDiscarded.remainder)
@@ -407,12 +421,13 @@ class BigDecimal private constructor(
         private fun roundSignificand(
             significand: BigInteger,
             exponent: Long,
-            decimalMode: DecimalMode
+            decimalMode: DecimalMode,
+            knownDigits: Long? = null
         ): RoundedSignificand {
             if (significand.isZero()) {
                 return RoundedSignificand(BigInteger.ZERO, exponent)
             }
-            val significandDigits = significand.numberOfDecimalDigits()
+            val significandDigits = knownDigits ?: significand.numberOfDecimalDigits()
             val desiredPrecision = if (decimalMode.usingScale) {
                 decimalMode.decimalPrecision + decimalMode.scale
             } else {
@@ -429,11 +444,19 @@ class BigDecimal private constructor(
                     if (divRem.remainder == BigInteger.ZERO) {
                         return RoundedSignificand(divRem.quotient, exponent)
                     }
+                    val quotientDigits = divRem.quotient.numberOfDecimalDigits()
+                    val remainderDigits = divRem.remainder.numberOfDecimalDigits()
+
                     // Check if remainder was .0XXX if so handle it
-                    if (significand.numberOfDecimalDigits() == divRem.quotient.numberOfDecimalDigits() + divRem.remainder.numberOfDecimalDigits()) {
-                        val newSignificand = roundDiscarded(divRem.quotient, resolvedRemainder, decimalMode)
-                        val exponentModifier =
-                            newSignificand.numberOfDecimalDigits() - divRem.quotient.numberOfDecimalDigits()
+                    if (significandDigits == quotientDigits + remainderDigits) {
+                        // Pass quotientDigits to recursive call if useful, though roundDiscarded uses its own logic.
+                        // But we can pass quotientDigits to roundDiscarded!
+                        val newSignificand = roundDiscarded(divRem.quotient, resolvedRemainder, decimalMode, quotientDigits)
+
+                        // We might need to recalc digits of newSignificand here, but usually it's close to quotientDigits
+                        val newSignificandDigits = newSignificand.numberOfDecimalDigits()
+
+                        val exponentModifier = newSignificandDigits - quotientDigits
                         RoundedSignificand(newSignificand, exponent + exponentModifier)
                     } else {
                         handleZeroRounding(divRem.quotient, exponent, decimalMode)
@@ -456,7 +479,12 @@ class BigDecimal private constructor(
          * 0.0012345678 digitPosition 3, rounding mode HALF_TOWARDS_ZERO will produce 0.001
          * 0.0012345678 digitPosition 5, rounding mode HALF_TOWARDS_ZERO will produce 0.00123
          */
-        private fun applyScale(significand: BigInteger, exponent: Long, decimalMode: DecimalMode): RoundedSignificand {
+        private fun applyScale(
+            significand: BigInteger,
+            exponent: Long,
+            decimalMode: DecimalMode,
+            knownDigits: Long? = null
+        ): RoundedSignificand {
             if (!decimalMode.usingScale) {
                 return RoundedSignificand(significand, exponent)
             }
@@ -472,13 +500,18 @@ class BigDecimal private constructor(
                 else -> throw RuntimeException("Unexpected state")
             }
             return if (exponent >= 0) {
-                roundSignificand(significand, exponent, workMode)
+                roundSignificand(significand, exponent, workMode, knownDigits)
             } else {
+                // Optimize potential double calculation of digits here
+                val digits = knownDigits ?: significand.numberOfDecimalDigits()
+
                 if (decimalMode.roundingMode == RoundingMode.ROUND_HALF_TO_EVEN) {
-                    val tmp = significand + BigInteger.tenPow(significand.numberOfDecimalDigits() - exponent - 1) * (2 * significand.signum())
+                    val tmp = significand + BigInteger.tenPow(digits - exponent - 1) * (2 * significand.signum())
+                    // Recalculating digits for tmp is hard to avoid, but tmp is usually 1 digit larger or same.
+                    // We can't easily reuse 'digits' for tmp.
                     roundSignificand(tmp, max(0, exponent), workMode) - (significand.signum() * 2)
                 } else {
-                    val tmp = significand + BigInteger.tenPow(significand.numberOfDecimalDigits() - exponent - 1) * significand.signum()
+                    val tmp = significand + BigInteger.tenPow(digits - exponent - 1) * significand.signum()
                     roundSignificand(tmp, max(0, exponent), workMode) - significand.signum()
                 }
             }
@@ -1274,6 +1307,7 @@ class BigDecimal private constructor(
      */
     fun divide(other: BigDecimal, decimalMode: DecimalMode? = null): BigDecimal {
         val resolvedDecimalMode = resolveDecimalMode(this.decimalMode, other.decimalMode, decimalMode)
+
         if (resolvedDecimalMode.isPrecisionUnlimited && resolvedDecimalMode.usingScale.not()) {
             val newExponent = this.exponent - other.exponent
             val power = (other.precision * 2 + 6)
@@ -1281,8 +1315,10 @@ class BigDecimal private constructor(
             val divRem = thisPrepared divrem other.significand
             val result = divRem.quotient
             val expectedDiff = other.precision - 1
-            val exponentModifier =
-                expectedDiff + (result.numberOfDecimalDigits() - thisPrepared.numberOfDecimalDigits())
+
+            // Optimization: Cache digits
+            val resultDigits = result.numberOfDecimalDigits()
+            val exponentModifier = expectedDiff + (resultDigits - thisPrepared.numberOfDecimalDigits())
 
             if (divRem.remainder != BigInteger.ZERO) {
                 throw ArithmeticException(
@@ -1291,16 +1327,18 @@ class BigDecimal private constructor(
                             "Specify decimalPrecision inside your decimal mode."
                 )
             }
+
             return BigDecimal(
                 result,
                 newExponent + exponentModifier,
-                resolvedDecimalMode
+                resolvedDecimalMode,
+                _trustedPrecision = resultDigits
             )
         } else {
             var newExponent = this.exponent - other.exponent - 1
-
             val desiredPrecision = resolvedDecimalMode.decimalPrecision
 
+            // Division logic usually targets high precision here (e.g. 120 digits)
             val power = desiredPrecision - this.precision + other.precision
             val thisPrepared = when {
                 power > 0 -> this.significand * BigInteger.tenPow(power)
@@ -1317,17 +1355,34 @@ class BigDecimal private constructor(
             val resultNumOfDigits = result.numberOfDecimalDigits()
             val exponentModifier = resultNumOfDigits - resolvedDecimalMode.decimalPrecision
 
-            return if (usingScale) {
-                BigDecimal(
-                    roundDiscarded(result, divRem.remainder, resolvedDecimalMode),
-                    newExponent + exponentModifier,
-                    resolvedDecimalMode.copy(decimalPrecision = resultNumOfDigits)
+            // Round the division result (Truncate to desiredPrecision)
+            val unscaledSignificand = roundDiscarded(result, divRem.remainder, resolvedDecimalMode, resultNumOfDigits)
+
+            // Recalculate precision only if significand changed (reference check is cheap).
+            val unscaledDigits = if (unscaledSignificand === result) resultNumOfDigits else unscaledSignificand.numberOfDecimalDigits()
+            val unscaledExponent = newExponent + exponentModifier
+
+            if (resolvedDecimalMode.usingScale) {
+                // The intermediate result has 'desiredPrecision' digits (e.g. 120),
+                // but we need to force it to 'scale' (e.g. 20).
+                val scaled = applyScale(unscaledSignificand, unscaledExponent, resolvedDecimalMode, unscaledDigits)
+
+                // Now we have the correctly scaled result.
+                val finalDigits = scaled.significand.numberOfDecimalDigits()
+
+                return BigDecimal(
+                    scaled.significand,
+                    scaled.exponent,
+                    resolvedDecimalMode.copy(decimalPrecision = finalDigits),
+                    _trustedPrecision = finalDigits
                 )
             } else {
-                BigDecimal(
-                    roundDiscarded(result, divRem.remainder, resolvedDecimalMode),
-                    newExponent + exponentModifier,
-                    resolvedDecimalMode
+                // No scale enforcement needed, return the result
+                return BigDecimal(
+                    unscaledSignificand,
+                    unscaledExponent,
+                    resolvedDecimalMode,
+                    _trustedPrecision = unscaledDigits
                 )
             }
         }
