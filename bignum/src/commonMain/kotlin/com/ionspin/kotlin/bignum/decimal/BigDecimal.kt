@@ -1356,7 +1356,27 @@ class BigDecimal private constructor(
             )
         } else {
             var newExponent = this.exponent - other.exponent - 1
-            val desiredPrecision = resolvedDecimalMode.decimalPrecision
+            var desiredPrecision = resolvedDecimalMode.decimalPrecision
+
+            if (resolvedDecimalMode.usingScale) {
+                // Approximate the exponent of the result to determine how many digits we really need
+                // to reach the requested 'scale'.
+                // Result ~ this / other -> Exponent ~ this.exp - other.exp
+                val approxExp = this.exponent - other.exponent
+
+                // We need digits covering from approxExp down to -scale.
+                // +1 covers exponent wobble (approxExp vs actual exponent).
+                // +1 covers the rounding digit.
+                // +6 covers edge cases in 'HALF_' rounding modes where the remainder
+                //    needs enough resolution to determine if it is exactly 0.5 or 0.5000...01
+                val neededForScale = max(0L, approxExp + resolvedDecimalMode.scale + 8)
+
+                // If needed is less than requested, use needed.
+                // This changes O(120^2) to O(20^2).
+                if (neededForScale < desiredPrecision) {
+                    desiredPrecision = neededForScale
+                }
+            }
 
             // Division logic usually targets high precision here (e.g. 120 digits)
             val power = desiredPrecision - this.precision + other.precision
@@ -1372,14 +1392,14 @@ class BigDecimal private constructor(
                 newExponent--
             }
             // Cache numberOfDecimalDigits() result to avoid calling it twice
-            val resultNumOfDigits = result.numberOfDecimalDigits()
-            val exponentModifier = resultNumOfDigits - resolvedDecimalMode.decimalPrecision
+            val resultNumOfDigits = fastBigIntegerDigits(result)
+            val exponentModifier = resultNumOfDigits - desiredPrecision
 
             // Round the division result (Truncate to desiredPrecision)
             val unscaledSignificand = roundDiscarded(result, divRem.remainder, resolvedDecimalMode, resultNumOfDigits)
 
             // Recalculate precision only if significand changed (reference check is cheap).
-            val unscaledDigits = if (unscaledSignificand === result) resultNumOfDigits else unscaledSignificand.numberOfDecimalDigits()
+            val unscaledDigits = if (unscaledSignificand === result) resultNumOfDigits else fastBigIntegerDigits(unscaledSignificand)
             val unscaledExponent = newExponent + exponentModifier
 
             if (resolvedDecimalMode.usingScale) {
