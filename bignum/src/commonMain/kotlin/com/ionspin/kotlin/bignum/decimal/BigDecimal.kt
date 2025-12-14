@@ -20,12 +20,8 @@ package com.ionspin.kotlin.bignum.decimal
 import com.ionspin.kotlin.bignum.BigNumber
 import com.ionspin.kotlin.bignum.CommonBigNumberOperations
 import com.ionspin.kotlin.bignum.NarrowingOperations
-import com.ionspin.kotlin.bignum.integer.BigInteger
-import com.ionspin.kotlin.bignum.integer.Platform
-import com.ionspin.kotlin.bignum.integer.RuntimePlatform
-import com.ionspin.kotlin.bignum.integer.Sign
-import com.ionspin.kotlin.bignum.integer.chosenArithmetic
-import com.ionspin.kotlin.bignum.integer.toBigInteger
+import com.ionspin.kotlin.bignum.QuotientAndRemainder
+import com.ionspin.kotlin.bignum.integer.*
 import com.ionspin.kotlin.bignum.integer.util.times
 import kotlin.math.absoluteValue
 import kotlin.math.max
@@ -162,7 +158,7 @@ class BigDecimal private constructor(
 
             // Fallback for safety or small numbers to exact logic if needed,
             // but for performance critical paths, this check is worth it.
-            val pow = BigInteger.tenPow(digits)
+            val pow = tenPow(digits)
             return if (bigInt.abs() < pow) digits else digits + 1
         }
 
@@ -183,7 +179,7 @@ class BigDecimal private constructor(
         }
 
         private fun determineDecider(discarded: BigInteger): SignificantDecider {
-            val scale = (BigInteger.tenPow(fastBigIntegerDigits(discarded) - 1))
+            val scale = (tenPow(fastBigIntegerDigits(discarded) - 1))
             val divrem = discarded.divrem(scale)
             val significant = divrem.quotient.abs().intValue(true)
             val rest = divrem.remainder.abs()
@@ -216,7 +212,7 @@ class BigDecimal private constructor(
             val digits = knownSignificandDigits ?: significand.numberOfDecimalDigits()
             val toDiscard = digits - decimalMode.decimalPrecision
             var (result, remainder) = if (toDiscard > 0) {
-                val additionallyDiscarded = (significand divrem BigInteger.tenPow(toDiscard))
+                val additionallyDiscarded = (significand divrem tenPow(toDiscard))
                 Pair(additionallyDiscarded.quotient, additionallyDiscarded.remainder)
             } else {
                 Pair(significand, discarded)
@@ -431,8 +427,8 @@ class BigDecimal private constructor(
 
             operator fun minus(subtrahend: Int): RoundedSignificand {
                 val digits = significand.numberOfDecimalDigits()
-                val subtrahendExponent = digits + if (exponent < 0) exponent else  exponent - 1
-                val newSignificand = significand - (BigInteger.tenPow(subtrahendExponent) * subtrahend)
+                val subtrahendExponent = digits + if (exponent < 0) exponent else exponent - 1
+                val newSignificand = significand - (tenPow(subtrahendExponent) * subtrahend)
                 val newExponent =
                     if (exponent < 0) exponent else exponent - (digits - newSignificand.numberOfDecimalDigits())
                 return RoundedSignificand(
@@ -459,11 +455,12 @@ class BigDecimal private constructor(
             }
             return when {
                 desiredPrecision > significandDigits && !decimalMode.usingScale -> {
-                    val extendedSignificand = significand * BigInteger.tenPow(desiredPrecision - significandDigits)
+                    val extendedSignificand = significand * tenPow(desiredPrecision - significandDigits)
                     RoundedSignificand(extendedSignificand, exponent)
                 }
+
                 desiredPrecision < significandDigits -> {
-                    val divRem = significand divrem BigInteger.tenPow(significandDigits - desiredPrecision)
+                    val divRem = significand divrem tenPow(significandDigits - desiredPrecision)
                     val resolvedRemainder = divRem.remainder
                     if (divRem.remainder == BigInteger.ZERO) {
                         return RoundedSignificand(divRem.quotient, exponent)
@@ -527,12 +524,12 @@ class BigDecimal private constructor(
                 val digits = knownDigits ?: fastBigIntegerDigits(significand)
 
                 if (decimalMode.roundingMode == RoundingMode.ROUND_HALF_TO_EVEN) {
-                    val tmp = significand + BigInteger.tenPow(digits - exponent - 1) * (2 * significand.signum())
+                    val tmp = significand + tenPow(digits - exponent - 1) * (2 * significand.signum())
                     // Recalculating digits for tmp is hard to avoid, but tmp is usually 1 digit larger or same.
                     // We can't easily reuse 'digits' for tmp.
                     roundSignificand(tmp, max(0, exponent), workMode) - (significand.signum() * 2)
                 } else {
-                    val tmp = significand + BigInteger.tenPow(digits - exponent - 1) * significand.signum()
+                    val tmp = significand + tenPow(digits - exponent - 1) * significand.signum()
                     roundSignificand(tmp, max(0, exponent), workMode) - significand.signum()
                 }
             }
@@ -1332,7 +1329,7 @@ class BigDecimal private constructor(
         if (resolvedDecimalMode.isPrecisionUnlimited && resolvedDecimalMode.usingScale.not()) {
             val newExponent = this.exponent - other.exponent
             val power = (other.precision * 2 + 6)
-            val thisPrepared = this.significand * BigInteger.tenPow(power)
+            val thisPrepared = this.significand * tenPow(power)
             val divRem = thisPrepared divrem other.significand
             val result = divRem.quotient
             val expectedDiff = other.precision - 1
@@ -1381,8 +1378,8 @@ class BigDecimal private constructor(
             // Division logic usually targets high precision here (e.g. 120 digits)
             val power = desiredPrecision - this.precision + other.precision
             val thisPrepared = when {
-                power > 0 -> this.significand * BigInteger.tenPow(power)
-                power < 0 -> this.significand / BigInteger.tenPow(power.absoluteValue)
+                power > 0 -> this.significand * tenPow(power)
+                power < 0 -> this.significand / tenPow(power.absoluteValue)
                 else -> this.significand
             }
 
@@ -1589,10 +1586,10 @@ class BigDecimal private constructor(
         val precisionExponentDiff = exponent - precision
         return when {
             precisionExponentDiff > 0 -> {
-                significand * BigInteger.tenPow(precisionExponentDiff + 1)
+                significand * tenPow(precisionExponentDiff + 1)
             }
             precisionExponentDiff < 0 -> {
-                significand / BigInteger.tenPow(precisionExponentDiff.absoluteValue - 1)
+                significand / tenPow(precisionExponentDiff.absoluteValue - 1)
             }
             else -> {
                 significand * 10
@@ -1638,7 +1635,7 @@ class BigDecimal private constructor(
     private fun removeTrailingZeroes(bigDecimal: BigDecimal): BigDecimal {
         if (bigDecimal.isZero()) return this
         var significand = bigDecimal.significand
-        var divisionResult = BigInteger.QuotientAndRemainder(bigDecimal.significand, BigInteger.ZERO)
+        var divisionResult = QuotientAndRemainder(bigDecimal.significand, BigInteger.ZERO)
         do {
             divisionResult = divisionResult.quotient.divrem(BigInteger.TEN)
             if (divisionResult.remainder == BigInteger.ZERO) {
@@ -1950,13 +1947,13 @@ class BigDecimal private constructor(
             val totalBits = if (precision - exponent - 1 > 0) {
                 // First find out where the decimal point will be
                 val integerPart = if (exponent >= 0) {
-                    significand / BigInteger.tenPow(precision - exponent - 1)
+                    significand / tenPow(precision - exponent - 1)
                 } else {
                     BigInteger.ZERO
                 }
-                val integerPartBitLength = chosenArithmetic.bitLength(integerPart.magnitude)
+                val integerPartBitLength = integerPart.bitLength()
 
-                val fractionPart = (significand divrem BigInteger.tenPow(precision - exponent - 1)).remainder
+                val fractionPart = (significand divrem tenPow(precision - exponent - 1)).remainder
                 var fractionConvertTemp =
                     BigDecimal(fractionPart, -1) // this will represent the integer xxxx as 0.xxxx
                 val bitList = mutableListOf<Int>()
@@ -1981,8 +1978,8 @@ class BigDecimal private constructor(
             } else {
                 // There is no fractional part so we need check if the distance between first non zero bit and
                 // last non zero bit is is less than or equal to 24
-                val trailingZeroBits = chosenArithmetic.trailingZeroBits(significand.magnitude)
-                val bitSum = chosenArithmetic.bitLength(significand.magnitude)
+                val trailingZeroBits = significand.trailingZeroBits()
+                val bitSum = significand.bitLength()
                 bitSum - trailingZeroBits
             }
 
@@ -2030,13 +2027,13 @@ class BigDecimal private constructor(
             val totalBits = if (precision - exponent - 1 > 0) {
                 // First find out where the decimal point will be
                 val integerPart = if (exponent >= 0) {
-                    significand / BigInteger.tenPow(precision - exponent - 1)
+                    significand / tenPow(precision - exponent - 1)
                 } else {
                     BigInteger.ZERO
                 }
-                val integerPartBitLength = chosenArithmetic.bitLength(integerPart.magnitude)
+                val integerPartBitLength = integerPart.bitLength()
 
-                val fractionPart = (significand divrem BigInteger.tenPow(precision - exponent - 1)).remainder
+                val fractionPart = (significand divrem tenPow(precision - exponent - 1)).remainder
                 var fractionConvertTemp =
                     BigDecimal(fractionPart, -1) // this will represent the integer xxxx as 0.xxxx
                 val bitList = mutableListOf<Int>()
@@ -2063,8 +2060,8 @@ class BigDecimal private constructor(
                 // last non zero bit is is less than or equal to 24
                 // We can reuse the trailing zero bits to count number of zeroes from the right, because we know
                 // that in big integer first non-zero is always the leftmost bit
-                val trailingZeroBits = chosenArithmetic.trailingZeroBits(significand.magnitude)
-                val bitSum = chosenArithmetic.bitLength(significand.magnitude)
+                val trailingZeroBits = significand.trailingZeroBits()
+                val bitSum = significand.bitLength()
                 bitSum - trailingZeroBits
             }
 
@@ -2187,20 +2184,20 @@ class BigDecimal private constructor(
             first.exponent > second.exponent -> {
                 val moveFirstBy = firstPreparedExponent - secondPreparedExponent
                 if (moveFirstBy >= 0) {
-                    val movedFirst = first.significand * BigInteger.tenPow(moveFirstBy)
+                    val movedFirst = first.significand * tenPow(moveFirstBy)
                     return Triple(movedFirst, second.significand, secondPreparedExponent)
                 } else {
-                    val movedSecond = second.significand * BigInteger.tenPow(moveFirstBy * -1)
+                    val movedSecond = second.significand * tenPow(moveFirstBy * -1)
                     Triple(first.significand, movedSecond, firstPreparedExponent)
                 }
             }
             first.exponent < second.exponent -> {
                 val moveSecondBy = secondPreparedExponent - firstPreparedExponent
                 return if (moveSecondBy >= 0) {
-                    val movedSecond = second.significand * BigInteger.tenPow(moveSecondBy)
+                    val movedSecond = second.significand * tenPow(moveSecondBy)
                     Triple(first.significand, movedSecond, firstPreparedExponent)
                 } else {
-                    val movedFirst = first.significand * BigInteger.tenPow(moveSecondBy * -1)
+                    val movedFirst = first.significand * tenPow(moveSecondBy * -1)
                     Triple(movedFirst, second.significand, firstPreparedExponent)
                 }
             }
@@ -2208,11 +2205,11 @@ class BigDecimal private constructor(
                 val delta = firstPreparedExponent - secondPreparedExponent
                 return when {
                     delta > 0 -> {
-                        val movedFirst = first.significand * BigInteger.tenPow(delta)
+                        val movedFirst = first.significand * tenPow(delta)
                         Triple(movedFirst, second.significand, firstPreparedExponent)
                     }
                     delta < 0 -> {
-                        val movedSecond = second.significand * BigInteger.tenPow(delta * -1)
+                        val movedSecond = second.significand * tenPow(delta * -1)
                         Triple(first.significand, movedSecond, firstPreparedExponent)
                     }
                     delta.compareTo(0) == 0 -> {
@@ -2232,10 +2229,10 @@ class BigDecimal private constructor(
      */
     fun compare(other: BigDecimal): Int {
         return if (this.exponent == other.exponent && this.precision == other.precision) {
-            significand.compare(other.significand)
+            significand.compareTo(other.significand)
         } else {
             val (preparedFirst, preparedSecond) = bringSignificandToSameExponent(this, other)
-            preparedFirst.compare(preparedSecond)
+            preparedFirst.compareTo(preparedSecond)
         }
     }
 
@@ -2302,7 +2299,7 @@ class BigDecimal private constructor(
             return toStringExpanded()
         }
         val significandString = significand.toString(10)
-        val modifier = if (significand < 0) {
+        val modifier = if (significand.isNegative) {
             2
         } else {
             1

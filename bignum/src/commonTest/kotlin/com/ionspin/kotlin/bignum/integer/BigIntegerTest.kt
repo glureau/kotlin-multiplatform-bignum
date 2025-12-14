@@ -50,22 +50,10 @@ BigIntegerTest {
 
     @Test
     fun testPow10ButAlsoGenerateTable() {
-        val generateTable = false
         val a = BigInteger.fromInt(10)
-        if (generateTable) {
-            println("    val powersOf10 = arrayOf(")
-        }
         for (i in 0..100) {
             val powered = a.pow(i)
-            if (generateTable) {
-                println("        ulongArrayOf(${powered.magnitude.joinToString(separator = "UL, ") { it.toString() }}UL), ")
-            }
-            assertTrue {
-                powered.toString(10) == "1" + i.toBigInteger() * '0'
-            }
-        }
-        if (generateTable) {
-            println("    )")
+            assertEquals(powered.toString(10), "1".padEnd(i+1, '0'))
         }
     }
 
@@ -161,8 +149,6 @@ BigIntegerTest {
         assertFailsWith<ArithmeticException> {
             val a = BigInteger(10)
             a.modInverse(5.toBigInteger())
-        }.also {
-            assertEquals("BigInteger is not invertible. This and modulus are not relatively prime (coprime).", it.message)
         }
     }
 

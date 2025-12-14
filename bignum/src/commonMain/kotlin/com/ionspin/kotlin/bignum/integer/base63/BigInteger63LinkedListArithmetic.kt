@@ -17,6 +17,7 @@
 
 package com.ionspin.kotlin.bignum.integer.base63
 
+import com.ionspin.kotlin.bignum.integer.LOG_10_OF_2
 import com.ionspin.kotlin.bignum.integer.BigInteger
 import com.ionspin.kotlin.bignum.integer.BigIntegerList63Arithmetic
 import com.ionspin.kotlin.bignum.integer.Quadruple

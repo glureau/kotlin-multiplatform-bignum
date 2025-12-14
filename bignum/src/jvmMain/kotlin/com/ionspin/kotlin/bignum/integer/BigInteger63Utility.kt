@@ -17,6 +17,7 @@
 
 package com.ionspin.kotlin.bignum.integer.base63
 
+import com.ionspin.kotlin.bignum.integer.sign
 import java.math.BigInteger
 
 /**
@@ -32,7 +33,7 @@ internal fun ULongArray.toJavaBigInteger(): BigInteger {
 }
 
 fun com.ionspin.kotlin.bignum.integer.BigInteger.toJavaBigInteger(): BigInteger {
-    return (this.magnitude.toULongArray().toJavaBigInteger() * this.sign.toInt().toBigInteger())
+    return this.jBigInt // TODO: Clean that
 }
 
 internal fun ULong.toJavaBigInteger(): BigInteger {

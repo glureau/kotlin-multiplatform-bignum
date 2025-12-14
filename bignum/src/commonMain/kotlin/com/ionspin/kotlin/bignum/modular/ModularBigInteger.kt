@@ -22,6 +22,8 @@ import com.ionspin.kotlin.bignum.ByteArraySerializable
 import com.ionspin.kotlin.bignum.CommonBigNumberOperations
 import com.ionspin.kotlin.bignum.ModularQuotientAndRemainder
 import com.ionspin.kotlin.bignum.NarrowingOperations
+import com.ionspin.kotlin.bignum.integer.divrem
+import com.ionspin.kotlin.bignum.integer.sign
 import com.ionspin.kotlin.bignum.integer.BigInteger
 import com.ionspin.kotlin.bignum.integer.Sign
 
@@ -135,12 +137,7 @@ class ModularBigInteger private constructor(
                 }
 
                 private fun BigInteger.prep(): BigInteger {
-                    val result = this % modulo
-                    return when (result.sign) {
-                        Sign.POSITIVE -> result
-                        Sign.NEGATIVE -> result + modulo
-                        Sign.ZERO -> BigInteger.ZERO
-                    }
+                    return this.mod(modulo)
                 }
             }
         }
@@ -226,21 +223,12 @@ class ModularBigInteger private constructor(
     }
 
     fun pow(exponent: BigInteger): ModularBigInteger {
-        var e = exponent
-        return if (this.modulus == BigInteger.ONE) {
-            creator.ZERO
-        } else {
-            var residue = BigInteger.ONE
-            var base = this.residue
-            while (e > 0) {
-                if (e % 2 == BigInteger.ONE) {
-                    residue = (residue * base) % modulus
-                }
-                e = e shr 1
-                base = base.pow(2) % modulus
-            }
-            ModularBigInteger(residue, modulus, creator)
-        }
+        if (this.modulus == BigInteger.ONE) return creator.ZERO
+
+        // Maps to native java.math.BigInteger.modPow() -> Instantly fast
+        val result = residue.modPow(exponent, modulus)
+
+        return ModularBigInteger(result, modulus, creator)
     }
 
     override fun pow(exponent: Long): ModularBigInteger {
@@ -274,7 +262,7 @@ class ModularBigInteger private constructor(
     override fun compareTo(other: Any): Int {
         return when (other) {
             is ModularBigInteger -> compare(other)
-            is BigInteger -> residue.compare(other)
+            is BigInteger -> residue.compareTo(other)
             is Long -> compare(creator.fromLong(other))
             is Int -> compare(creator.fromInt(other))
             is Short -> compare(creator.fromShort(other))

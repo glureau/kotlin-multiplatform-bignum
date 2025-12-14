@@ -1,6 +1,7 @@
 package com.ionspin.kotlin.bignum.decimal
 
 import com.ionspin.kotlin.bignum.integer.BigInteger
+import com.ionspin.kotlin.bignum.integer.tenPow
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.random.Random
@@ -167,9 +168,9 @@ class BigDecimalBenchmark {
             measure = { (a, b) -> a.pow(b) }
         )
         benchmark(
-            key = "BigInteger.TEN.pow",
+            key = "tenPow",
             prepare = { nextLong(0, 50) },
-            measure = { BigInteger.TEN.pow(it) }
+            measure = { tenPow(it) }
         )
         benchmark(
             key = "BigInteger.isZero",

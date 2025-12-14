@@ -131,8 +131,8 @@ interface BigNumber<BigType> where BigType : BigNumber<BigType> {
      */
     fun numberOfDecimalDigits(): Long
 
-    fun compareTo(other: Any): Int
-    override fun equals(other: Any?): Boolean
+    operator fun compareTo(other: Any): Int
+    override operator fun equals(other: Any?): Boolean
 
     override fun toString(): String
     fun toString(base: Int): String
@@ -260,6 +260,7 @@ interface BitwiseCapable<BigType> {
      * Returns the number of bits needed to represent this number
      */
     fun bitLength(): Int
+    fun trailingZeroBits(): Int
 }
 
 interface ByteArraySerializable {

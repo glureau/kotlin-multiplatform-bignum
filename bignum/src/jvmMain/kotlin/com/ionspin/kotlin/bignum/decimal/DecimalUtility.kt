@@ -35,12 +35,12 @@ fun BigDecimal.toJavaBigDecimal(): java.math.BigDecimal {
     }
     return if (exponent > 0) {
         java.math.BigDecimal(
-            this.significand.toJavaBigInteger(),
+            this.significand.jBigInt,
             (this.precision - this.exponent - 1).toInt()
         )
     } else {
         java.math.BigDecimal(
-            this.significand.toJavaBigInteger(),
+            this.significand.jBigInt,
             (this.precision + this.exponent.absoluteValue - 1).toInt()
         )
     }

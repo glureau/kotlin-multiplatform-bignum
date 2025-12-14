@@ -61,7 +61,7 @@ class ParsingAndToStringTest {
             492133570377UL,
             0UL
         )
-        val parsed = BigInteger.fromWordArray(bigInt.toProperType(), Sign.POSITIVE)
+        val parsed = BigInteger(bigInt.toProperType(), Sign.POSITIVE)
         parsed.toString()
     }
 }

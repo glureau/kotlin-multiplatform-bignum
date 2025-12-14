@@ -9,6 +9,7 @@ import com.ionspin.kotlin.bignum.integer.Sign
 import com.ionspin.kotlin.bignum.integer.base32.BigInteger32Arithmetic
 import com.ionspin.kotlin.bignum.integer.base63.array.BigInteger63Arithmetic
 import com.ionspin.kotlin.bignum.integer.base63.array.BigInteger63Arithmetic.ZERO
+import com.ionspin.kotlin.bignum.integer.sign
 
 /**
  * Created by Ugljesa Jovanovic
@@ -152,12 +153,12 @@ fun BigInteger.Companion.fromTwosComplementByteArray(source: ByteArray): BigInte
 }
 
 fun BigInteger.toTwosComplementByteArray(): ByteArray {
-    if (magnitude.isEmpty()) {
+    if (this.bitLength() == 0) {
         return byteArrayOf(0)
     }
 
     return if (sign == Sign.NEGATIVE) {
-        if (magnitude.size == 1 && magnitude[0] == 1UL) {
+        if (this == BigInteger.ONE.negate()) {
             return byteArrayOf(-1)
         }
         val nonTwosComplementArray = toByteArray()
@@ -179,7 +180,7 @@ fun BigInteger.toTwosComplementByteArray(): ByteArray {
         }
         trimmed
     } else {
-        if (magnitude.contentEquals(ZERO)) {
+        if (this.isZero()) {
             return byteArrayOf(0)
         }
         val result = toByteArray()

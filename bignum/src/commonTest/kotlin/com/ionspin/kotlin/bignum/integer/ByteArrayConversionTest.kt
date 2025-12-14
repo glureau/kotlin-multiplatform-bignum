@@ -19,6 +19,7 @@ package com.ionspin.kotlin.bignum.integer
 
 import com.ionspin.kotlin.bignum.integer.base63.array.BigInteger63Arithmetic
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
@@ -31,25 +32,25 @@ class ByteArrayConversionTest {
 
     @Test
     fun testToAndFromByteArray() {
-        assertTrue {
+        run {
             val bigIntOriginal = BigInteger.fromULong(ULong.MAX_VALUE)
             val byteArray = bigIntOriginal.toUByteArray()
             val reconstructed = BigInteger.fromUByteArray(byteArray, Sign.POSITIVE)
-            bigIntOriginal == reconstructed
+            assertEquals(bigIntOriginal, reconstructed)
         }
 
-        assertTrue {
+        run {
             val bigIntOriginal = BigInteger.fromLong(Long.MIN_VALUE)
             val byteArray = bigIntOriginal.toUByteArray()
             val reconstructed = BigInteger.fromUByteArray(byteArray, Sign.NEGATIVE)
-            bigIntOriginal.equals(reconstructed)
+            assertEquals(bigIntOriginal, reconstructed)
         }
 
-        assertTrue {
+        run {
             val bigIntOriginal = BigInteger.fromULong(ULong.MAX_VALUE) + BigInteger.fromULong(ULong.MAX_VALUE)
             val byteArray = bigIntOriginal.toUByteArray()
             val reconstructed = BigInteger.fromUByteArray(byteArray, Sign.POSITIVE)
-            bigIntOriginal.equals(reconstructed)
+            assertEquals(bigIntOriginal, reconstructed)
         }
     }
 
@@ -68,17 +69,15 @@ class ByteArrayConversionTest {
 
     @Test
     fun fromUByteArray() {
-        assertTrue {
-            val expected = BigInteger.parseString("112233445566778899AABBCCDDEEFF00", 16)
-            val bigInt = BigInteger.fromUByteArray(
-                ubyteArrayOf(
-                    0x11U, 0x22U, 0x33U, 0x44U, 0x55U, 0x66U, 0x77U, 0x88U,
-                    0x99U, 0xAAU, 0xBBU, 0xCCU, 0xDDU, 0xEEU, 0xFFU, 0x00U
-                ),
-                Sign.POSITIVE
-            )
-            bigInt == expected
-        }
+        val expected = BigInteger.parseString("112233445566778899AABBCCDDEEFF00", 16)
+        val bigInt = BigInteger.fromUByteArray(
+            ubyteArrayOf(
+                0x11U, 0x22U, 0x33U, 0x44U, 0x55U, 0x66U, 0x77U, 0x88U,
+                0x99U, 0xAAU, 0xBBU, 0xCCU, 0xDDU, 0xEEU, 0xFFU, 0x00U
+            ),
+            Sign.POSITIVE
+        )
+        assertEquals(bigInt, expected)
     }
 
     @Test

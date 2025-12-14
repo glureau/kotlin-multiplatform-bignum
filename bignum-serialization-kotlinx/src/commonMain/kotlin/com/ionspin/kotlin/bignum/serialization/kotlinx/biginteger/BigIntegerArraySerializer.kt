@@ -1,7 +1,9 @@
 package com.ionspin.kotlin.bignum.serialization.kotlinx.biginteger
 
 import com.ionspin.kotlin.bignum.integer.BigInteger
+import com.ionspin.kotlin.bignum.integer.CommonBigInteger
 import com.ionspin.kotlin.bignum.integer.Sign
+import com.ionspin.kotlin.bignum.integer.sign
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ArraySerializer
@@ -36,10 +38,10 @@ object BigIntegerArraySerializer : KSerializer<BigInteger> {
 
 
     override fun serialize(encoder: Encoder, value: BigInteger) {
-        val array = value.getBackingArrayCopy()
+        val array = CommonBigInteger.parseString(value.toString(10), 10).getBackingArrayCopy()
         encoder.encodeStructure(descriptor) {
             encodeSerializableElement(descriptor, 0, longArraySerializer, array.asLongArray().toTypedArray())
-            encodeStringElement(descriptor, 1, value.getSign().name)
+            encodeStringElement(descriptor, 1, value.sign.name)
         }
 
     }
@@ -56,7 +58,7 @@ object BigIntegerArraySerializer : KSerializer<BigInteger> {
                     else -> error("Unexpected index: $index")
                 }
             }
-            BigInteger.createFromWordArray(array.toLongArray().asULongArray(), Sign.valueOf(signString))
+            BigInteger(array.toLongArray().asULongArray(), Sign.valueOf(signString))
 
         }
 

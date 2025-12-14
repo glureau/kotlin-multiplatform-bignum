@@ -1,6 +1,7 @@
 package com.ionspin.kotlin.bignum.decimal
 
 import com.ionspin.kotlin.bignum.integer.BigInteger
+import com.ionspin.kotlin.bignum.integer.factorial
 import com.ionspin.kotlin.bignum.integer.toBigInteger
 import kotlin.test.Test
 import kotlin.test.assertEquals

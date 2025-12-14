@@ -17,7 +17,11 @@
 
 package com.ionspin.kotlin.bignum.integer
 
+import com.ionspin.kotlin.bignum.integer.divrem
+import com.ionspin.kotlin.bignum.integer.toModularBigInteger
+import kotlin.math.exp
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
@@ -173,12 +177,14 @@ class BigIntegerReadmeTest {
     @Test
     fun `Test_readme_inv_sample`() {
         val operand = BigInteger.parseString("11110000", 2)
-        val invResult = operand.not()
+        // We want to simulate an 8-bit NOT, so we MUST mask the result
+        val mask = BigInteger.parseString("11111111", 2) // 255 (0xFF)
+        val invResult = operand.not().and(mask) // -241 AND 255 = 15
         println("Inv result: ${invResult.toString(2)}")
 
         val expectedResult = BigInteger.parseString("00001111", 2)
 
-        assertTrue { invResult == expectedResult }
+        assertEquals(invResult, expectedResult)
     }
 
     @Test

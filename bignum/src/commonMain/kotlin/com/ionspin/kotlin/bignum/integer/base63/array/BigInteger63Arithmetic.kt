@@ -19,6 +19,8 @@ package com.ionspin.kotlin.bignum.integer.base63.array
 
 import com.ionspin.kotlin.bignum.integer.BigInteger
 import com.ionspin.kotlin.bignum.integer.BigIntegerArithmetic
+import com.ionspin.kotlin.bignum.integer.CommonBigInteger
+import com.ionspin.kotlin.bignum.integer.LOG_10_OF_2
 import com.ionspin.kotlin.bignum.integer.base32.BigInteger32Arithmetic
 import com.ionspin.kotlin.bignum.integer.util.toBigEndianUByteArray
 import com.ionspin.kotlin.bignum.integer.util.toDigit
@@ -1340,17 +1342,16 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic {
         val base = BigInteger.ONE.shl(operand.size * 63)
         val creator = ModularBigInteger.creatorForModulo(base)
         val reciprocalOf3 = creator.fromInt(3).inverse()
+
+        val inverseBigInt = reciprocalOf3.toBigInteger()
+        val magnitudeArray =  parseForBase(inverseBigInt.toString(10), 10)
+
         val multipliedByInverse =
             multiply(
                 operand,
-                reciprocalOf3.toBigInteger().magnitude.toULongArray()
+                magnitudeArray
             )
         return multipliedByInverse.slice(operand.indices).toULongArray()
-    }
-
-    fun exactDivideBy3Better(operand: ULongArray): ULongArray {
-        // TODO
-        return operand
     }
 
     override fun reciprocal(operand: ULongArray): Pair<ULongArray, ULongArray> {
