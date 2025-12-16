@@ -33,7 +33,11 @@ actual class BigInteger(
         ByteArrayDeserializable<BigInteger> {
         override val ZERO: BigInteger = BigInteger(JBigInt.ZERO)
         override val ONE: BigInteger = BigInteger(JBigInt.ONE)
-        override val TWO: BigInteger = BigInteger(JBigInt.TWO)
+        override val TWO: BigInteger = try {
+            BigInteger(JBigInt.TWO)
+        } catch (e: NoSuchFieldError) { // no Android export, so using a JVM one but this is not available everywhere
+            ONE + ONE
+        }
         override val TEN: BigInteger = BigInteger(JBigInt.TEN)
 
         // Helper for ULong correction (2^64)
@@ -199,19 +203,56 @@ actual class BigInteger(
 
     // --- Narrowing Operations ---
     override fun intValue(exactRequired: Boolean): Int {
-        return if (exactRequired) jBigInt.intValueExact() else jBigInt.toInt()
+        return if (exactRequired) try {
+            jBigInt.intValueExact()
+        } catch (e: NoSuchMethodError) {
+            // TODO proper Android fallback (intValueExact added in API Level 31)
+            val intVal = jBigInt.toInt()
+            if (JBigInt.valueOf(intVal.toLong()) != jBigInt) {
+                throw ArithmeticException("BigInteger out of Int range")
+            }
+            intVal
+        } else jBigInt.toInt()
     }
 
     override fun longValue(exactRequired: Boolean): Long {
-        return if (exactRequired) jBigInt.longValueExact() else jBigInt.toLong()
+        return if (exactRequired) try {
+            jBigInt.longValueExact()
+        } catch (e: NoSuchMethodError) {
+            // TODO proper Android fallback (longValueExact added in API Level 31)
+            val longVal = jBigInt.toLong()
+            if (JBigInt.valueOf(longVal) != jBigInt) {
+                throw ArithmeticException("BigInteger out of Long range")
+            }
+            longVal
+        } else jBigInt.toLong()
     }
 
     override fun byteValue(exactRequired: Boolean): Byte {
-        return if (exactRequired) jBigInt.byteValueExact() else jBigInt.toByte()
+        return if (exactRequired) try {
+            jBigInt.byteValueExact()
+        } catch (e: NoSuchMethodError) {
+            // TODO proper Android fallback (byteValueExact added in API Level 31)
+            val byteVal = jBigInt.toByte()
+            if (JBigInt.valueOf(byteVal.toLong()) != jBigInt) {
+                throw ArithmeticException("BigInteger out of Byte range")
+            }
+            byteVal
+        }
+        else jBigInt.toByte()
     }
 
     override fun shortValue(exactRequired: Boolean): Short {
-        return if (exactRequired) jBigInt.shortValueExact() else jBigInt.toShort()
+        return if (exactRequired) try {
+            jBigInt.shortValueExact()
+        } catch (e: NoSuchMethodError) {
+            // TODO proper Android fallback (shortValueExact added in API Level 31)
+            val shortVal = jBigInt.toShort()
+            if (JBigInt.valueOf(shortVal.toLong()) != jBigInt) {
+                throw ArithmeticException("BigInteger out of Short range")
+            }
+            shortVal
+        } else jBigInt.toShort()
     }
 
     // Unsigned narrowing is tricky because Java BigInt is signed.
